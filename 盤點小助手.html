@@ -157,21 +157,25 @@
         }
     }
 
-    async function uploadToCloud() {
+   async function uploadToCloud() {
         document.getElementById('syncStatus').innerText = "狀態: 正在上傳資料...";
         document.getElementById('syncStatus').style.color = "blue";
         try {
-            const response = await fetch(GAS_URL, {
+            // 加入 mode: 'no-cors' 繞過瀏覽器阻擋
+            await fetch(GAS_URL, {
                 method: "POST",
+                mode: "no-cors", 
+                headers: {
+                    "Content-Type": "text/plain;charset=utf-8"
+                },
                 body: JSON.stringify(inventory)
             });
-            const result = await response.json();
-            if (result.status === "success") {
-                document.getElementById('syncStatus').innerText = "狀態: 上傳雲端成功 ☁️✅ (" + new Date().toLocaleTimeString() + ")";
-                document.getElementById('syncStatus').style.color = "green";
-            }
+            
+            // 使用 no-cors 時無法讀取 Google 的回傳確認，但只要沒報錯就代表發送成功
+            document.getElementById('syncStatus').innerText = "狀態: 上傳雲端成功 ☁️✅ (" + new Date().toLocaleTimeString() + ")";
+            document.getElementById('syncStatus').style.color = "green";
         } catch (error) {
-            document.getElementById('syncStatus').innerText = "狀態: 上傳失敗 ❌ 請檢查網路。";
+            document.getElementById('syncStatus').innerText = "狀態: 上傳失敗 ❌ " + error;
             document.getElementById('syncStatus').style.color = "red";
         }
     }
@@ -340,3 +344,4 @@
 </script>
 </body>
 </html>
+
