@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>禮品庫存管理-單位強化版</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root { --primary: #1a73e8; --success: #34a853; --gray: #5f6368; }
+        body { font-family: -apple-system, sans-serif; background: #f4f6f9; padding: 15px; margin: 0; }
+        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: var(--primary); margin-bottom: 20px; }
+        
+        .section { background: #fff; border: 1px solid #dadce0; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .section-title { font-weight: bold; margin-bottom: 10px; display: block; color: var(--gray); font-size: 0.9em; }
+
+        .input-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        input, select { padding: 12px; border: 1px solid #dadce0; border-radius: 6px; flex: 1; min-width: 120px; font-size: 14px; }
+        select { background-color: #fcfcfc; cursor: pointer; }
+        
+        button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-blue { background: var(--primary); color: white; }
+        .btn-green { background: var(--success); color: white; width: 100%; font-size: 1.1em; margin-top: 10px; }
+        
+        .summary-bar { background: #e8f0fe; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border: 1px solid #1a73e8; }
+        .total-val { font-size: 1.5em; font-weight: bold; color: var(--primary); }
+
+        .table-container { overflow-x: auto; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 800px; }
+        th, td { border-bottom: 1px solid #eee; padding: 12px 8px; text-align: left; }
+        th { background: #f8f9fa; color: var(--gray); position: sticky; top: 0; }
+        
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-bottom: 4px; }
+        .tag-area { background: #e3e3e3; color: #333; }
+        .tag-cat { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        
+        .qty-ctrl { display: flex; align-items: center; gap: 5px; }
+        .qty-input { width: 55px; text-align: center; font-weight: bold; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .circle-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #ccc; background: #fff; font-size: 18px; line-height: 1; }
+        .highlight { background-color: #fff9c4 !important; transition: 1s; }
+        .unit-text { color: #888; font-size: 12px; margin-left: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📦 禮品資產盤點系統 (完整版)</h2>
+
+    <div class="summary-bar">
+        <span>目前庫存總價值：</span>
+        <span class="total-val" id="grandTotal">$0</span>
+    </div>
+
+    <div class="section">
+        <div id="reader"></div>
+        <button class="btn-blue" style="width:100%" onclick="toggleScanner()">📷 開啟條碼掃描</button>
+        <input type="text" id="search" placeholder="🔍 搜尋類別、區域、名稱、SKU 或單位..." onkeyup="renderTable()" style="width:100%; margin-top:10px; box-sizing:border-box;">
+    </div>
+
+    <div class="section">
+        <span class="section-title">➕ 新增禮品 (可選擇類別與單位)</span>
+        <div class="input-row">
+            <select id="catSelect" onchange="checkCustomCat()">
+                <option value="HAMPER類(cheap餅)">1. HAMPER類(cheap餅)</option>
+                <option value="HAMPER類(朱古力,餅乾)">2. HAMPER類(朱古力,餅乾)</option>
+                <option value="BB野">3. BB野</option>
+                <option value="籃">4. 籃</option>
+                <option value="ESG">5. ESG</option>
+                <option value="酒">6. 酒</option>
+                <option value="果汁">7. 果汁</option>
+                <option value="永生花">8. 永生花</option>
+                <option value="custom">9. 自定義 (手寫)</option>
+            </select>
+            <input type="text" id="customCat" placeholder="請輸入類別名稱" style="display:none; border-color: var(--primary);">
+            <input type="text" id="newArea" placeholder="區域 (如: A-01)">
+        </div>
+        <div class="input-row">
+            <input type="text" id="newSKU" placeholder="SKU 編號">
+            <input type="text" id="newName" placeholder="產品名稱 (必填)">
+            <select id="unitSelect">
+                <option value="件" selected>單位: 件</option>
+                <option value="箱">單位: 箱</option>
+                <option value="樽">單位: 樽</option>
+                <option value="其他">單位: 其他</option>
+            </select>
+        </div>
+        <div class="input-row">
+            <input type="number" id="newPrice" placeholder="單價 ($)">
+            <input type="number" id="newBook" placeholder="帳面數量">
+            <button class="btn-blue" style="flex:1" onclick="addItem()">加入清單</button>
+        </div>
+    </div>
+
+    <div class="input-row">
+        <button class="btn-green" onclick="exportToExcel()">📊 一鍵生成資產報告 (Excel)</button>
+        <button onclick="confirmClear()" style="background:#eee; color:#666; border-radius:6px; margin-top:10px;">清空數據</button>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>區域/類別</th>
+                    <th>產品名稱 / SKU</th>
+                    <th>單價</th>
+                    <th>實盤數量 (單位)</th>
+                    <th>總價 (實盤)</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let inventory = JSON.parse(localStorage.getItem('gift_final_unit_v1')) || [];
+    let html5QrCode;
+
+    function checkCustomCat() {
+        const select = document.getElementById('catSelect');
+        const customInput = document.getElementById('customCat');
+        customInput.style.display = (select.value === 'custom') ? 'block' : 'none';
+    }
+
+    function addItem() {
+        const name = document.getElementById('newName').value;
+        if (!name) return alert("請輸入名稱");
+
+        const catSelect = document.getElementById('catSelect');
+        const finalCat = (catSelect.value === 'custom') ? document.getElementById('customCat').value : catSelect.value;
+
+        const item = {
+            category: finalCat || "未分類",
+            area: document.getElementById('newArea').value || "未指定",
+            sku: document.getElementById('newSKU').value || "N/A",
+            name: name,
+            unit: document.getElementById('unitSelect').value,
+            price: parseFloat(document.getElementById('newPrice').value) || 0,
+            bookQty: parseInt(document.getElementById('newBook').value) || 0,
+            actualQty: 0
+        };
+
+        inventory.push(item);
+        saveAndRender();
+        document.getElementById('newName').value = '';
+        document.getElementById('newPrice').value = '';
+        document.getElementById('newBook').value = '';
+    }
+
+    function saveAndRender() {
+        inventory.sort((a, b) => {
+            if (a.area !== b.area) return a.area.localeCompare(b.area);
+            return (b.price * b.actualQty) - (a.price * a.actualQty);
+        });
+        localStorage.setItem('gift_final_unit_v1', JSON.stringify(inventory));
+        renderTable();
+    }
+
+    function renderTable() {
+        const query = document.getElementById('search').value.toLowerCase();
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        let grandTotal = 0;
+
+        inventory.forEach((item, index) => {
+            const itemTotal = item.price * item.actualQty;
+            grandTotal += itemTotal;
+
+            if (Object.values(item).some(val => String(val).toLowerCase().includes(query))) {
+                const tr = document.createElement('tr');
+                tr.id = `row-${index}`;
+                tr.innerHTML = `
+                    <td>
+                        <span class="tag tag-area">${item.area}</span><br>
+                        <span class="tag tag-cat">${item.category}</span>
+                    </td>
+                    <td><b>${item.name}</b><br><small style="color:gray">SKU: ${item.sku}</small></td>
+                    <td>$${item.price.toLocaleString()}</td>
+                    <td>
+                        <div class="qty-ctrl">
+                            <button class="circle-btn" onclick="adjust(${index},-1)">-</button>
+                            <input type="number" class="qty-input" value="${item.actualQty}" onchange="updateQty(${index}, this.value)">
+                            <button class="circle-btn" onclick="adjust(${index},1)">+</button>
+                            <span class="unit-text">${item.unit}</span>
+                        </div>
+                    </td>
+                    <td style="font-weight:bold;">$${itemTotal.toLocaleString()}</td>
+                    <td><button onclick="remove(${index})" style="color:red; background:none; border:none; cursor:pointer;">✕</button></td>
+                `;
+                tbody.appendChild(tr);
+            }
+        });
+        document.getElementById('grandTotal').innerText = `$${grandTotal.toLocaleString()}`;
+    }
+
+    function adjust(index, amt) {
+        inventory[index].actualQty = Math.max(0, inventory[index].actualQty + amt);
+        saveAndRender();
+    }
+
+    function updateQty(index, val) {
+        inventory[index].actualQty = parseInt(val) || 0;
+        saveAndRender();
+    }
+
+    function remove(index) {
+        if(confirm("確定刪除此品項？")) { inventory.splice(index, 1); saveAndRender(); }
+    }
+
+    function toggleScanner() {
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
+                const idx = inventory.findIndex(i => i.sku === text.trim());
+                if (idx !== -1) {
+                    inventory[idx].actualQty++;
+                    saveAndRender();
+                    const row = document.getElementById(`row-${idx}`);
+                    if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('highlight'); setTimeout(()=>row.classList.remove('highlight'), 2000); }
+                } else { alert("找不到 SKU: " + text); }
+            });
+        } else { html5QrCode.stop().then(()=> { html5QrCode = null; document.getElementById('reader').innerHTML=''; }); }
+    }
+
+    function exportToExcel() {
+        let csv = "\uFEFF區域,類別,SKU,產品名稱,單位,單價,帳面數量,實盤數量,總價值(實盤),差異\n";
+        inventory.forEach(i => {
+            const total = i.price * i.actualQty;
+            csv += `"${i.area}","${i.category}","${i.sku}","${i.name}","${i.unit}",${i.price},${i.bookQty},${i.actualQty},${total},${i.actualQty - i.bookQty}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `禮品資產報告(含單位)_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+    }
+
+    function confirmClear() { if(confirm("確定清空數據？")) { inventory=[]; saveAndRender(); } }
+
+    renderTable();
+</script>
+</body>
+</html>
