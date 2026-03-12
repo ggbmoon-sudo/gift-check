@@ -3,20 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>禮品庫存管理-單位強化版</title>
+    <title>禮品庫存管理 - 雲端同步版</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        :root { --primary: #1a73e8; --success: #34a853; --gray: #5f6368; }
+        :root { --primary: #1a73e8; --success: #34a853; --warning: #fbbc04; --gray: #5f6368; }
         body { font-family: -apple-system, sans-serif; background: #f4f6f9; padding: 15px; margin: 0; }
         .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         h2 { text-align: center; color: var(--primary); margin-bottom: 20px; }
         
+        /* 雲端同步區塊樣式 */
+        .sync-bar { background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #a5d6a7; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+        .sync-btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; flex: 1; min-width: 120px; }
+        .btn-download { background: #1a73e8; color: white; }
+        .btn-upload { background: #34a853; color: white; }
+        #syncStatus { font-size: 13px; color: #555; width: 100%; text-align: center; margin-top: 5px; }
+
         .section { background: #fff; border: 1px solid #dadce0; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
         .section-title { font-weight: bold; margin-bottom: 10px; display: block; color: var(--gray); font-size: 0.9em; }
 
         .input-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
         input, select { padding: 12px; border: 1px solid #dadce0; border-radius: 6px; flex: 1; min-width: 120px; font-size: 14px; }
-        select { background-color: #fcfcfc; cursor: pointer; }
         
         button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .btn-blue { background: var(--primary); color: white; }
@@ -39,12 +45,21 @@
         .circle-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #ccc; background: #fff; font-size: 18px; line-height: 1; }
         .highlight { background-color: #fff9c4 !important; transition: 1s; }
         .unit-text { color: #888; font-size: 12px; margin-left: 2px; }
+
+        /* 讓相機畫面好看一點 */
+        #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #1a73e8; margin-bottom: 10px; display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>📦 禮品資產盤點系統 (完整版)</h2>
+    <h2>📦 禮品庫存系統 (雲端同步版)</h2>
+
+    <div class="sync-bar">
+        <button class="sync-btn btn-download" onclick="downloadFromCloud()">⬇️ 1. 從雲端下載最新資料</button>
+        <button class="sync-btn btn-upload" onclick="uploadToCloud()">⬆️ 2. 盤點後上傳至雲端</button>
+        <div id="syncStatus">狀態: 尚未連線</div>
+    </div>
 
     <div class="summary-bar">
         <span>目前庫存總價值：</span>
@@ -53,12 +68,12 @@
 
     <div class="section">
         <div id="reader"></div>
-        <button class="btn-blue" style="width:100%" onclick="toggleScanner()">📷 開啟條碼掃描</button>
+        <button class="btn-blue" style="width:100%" onclick="toggleScanner()">📷 開啟/關閉 條碼掃描</button>
         <input type="text" id="search" placeholder="🔍 搜尋類別、區域、名稱、SKU 或單位..." onkeyup="renderTable()" style="width:100%; margin-top:10px; box-sizing:border-box;">
     </div>
 
     <div class="section">
-        <span class="section-title">➕ 新增禮品 (可選擇類別與單位)</span>
+        <span class="section-title">➕ 新增禮品</span>
         <div class="input-row">
             <select id="catSelect" onchange="checkCustomCat()">
                 <option value="HAMPER類(cheap餅)">1. HAMPER類(cheap餅)</option>
@@ -92,8 +107,8 @@
     </div>
 
     <div class="input-row">
-        <button class="btn-green" onclick="exportToExcel()">📊 一鍵生成資產報告 (Excel)</button>
-        <button onclick="confirmClear()" style="background:#eee; color:#666; border-radius:6px; margin-top:10px;">清空數據</button>
+        <button class="btn-green" onclick="exportToExcel()">📊 導出備份 (Excel)</button>
+        <button onclick="confirmClear()" style="background:#eee; color:#666; border-radius:6px; margin-top:10px;">清空本地數據</button>
     </div>
 
     <div class="table-container">
@@ -114,9 +129,102 @@
 </div>
 
 <script>
-    let inventory = JSON.parse(localStorage.getItem('gift_final_unit_v1')) || [];
-    let html5QrCode;
+    // ⚠️⚠️⚠️ 必須修改這裡！貼上你從 Google 複製出來的網址 ⚠️⚠️⚠️
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
 
+    let inventory = JSON.parse(localStorage.getItem('gift_cloud_v2')) || [];
+    let html5QrCode;
+    let isScanning = false;
+
+    // --- 雲端同步功能 ---
+    async function downloadFromCloud() {
+        document.getElementById('syncStatus').innerText = "狀態: 正在下載資料...";
+        document.getElementById('syncStatus').style.color = "blue";
+        try {
+            const response = await fetch(GAS_URL);
+            const data = await response.json();
+            if (data && data.length > 0) {
+                inventory = data;
+                saveAndRender();
+                document.getElementById('syncStatus').innerText = "狀態: 下載成功 ✅ (" + new Date().toLocaleTimeString() + ")";
+                document.getElementById('syncStatus').style.color = "green";
+            } else {
+                document.getElementById('syncStatus').innerText = "狀態: 雲端目前沒有資料。";
+            }
+        } catch (error) {
+            document.getElementById('syncStatus').innerText = "狀態: 下載失敗 ❌ 請檢查網址是否正確。";
+            document.getElementById('syncStatus').style.color = "red";
+        }
+    }
+
+    async function uploadToCloud() {
+        document.getElementById('syncStatus').innerText = "狀態: 正在上傳資料...";
+        document.getElementById('syncStatus').style.color = "blue";
+        try {
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify(inventory)
+            });
+            const result = await response.json();
+            if (result.status === "success") {
+                document.getElementById('syncStatus').innerText = "狀態: 上傳雲端成功 ☁️✅ (" + new Date().toLocaleTimeString() + ")";
+                document.getElementById('syncStatus').style.color = "green";
+            }
+        } catch (error) {
+            document.getElementById('syncStatus').innerText = "狀態: 上傳失敗 ❌ 請檢查網路。";
+            document.getElementById('syncStatus').style.color = "red";
+        }
+    }
+
+    // --- 掃描功能修復版 ---
+    function toggleScanner() {
+        const readerElement = document.getElementById('reader');
+        if (!isScanning) {
+            html5QrCode = new Html5Qrcode("reader");
+            readerElement.style.display = "block";
+            
+            // 針對商品條碼(1D Barcode)進行優化：將掃描框改為長方形
+            const config = { 
+                fps: 10, 
+                qrbox: { width: 300, height: 120 } // 寬扁型掃描框
+            };
+
+            html5QrCode.start({ facingMode: "environment" }, config, 
+                (decodedText) => {
+                    // 掃描成功
+                    const idx = inventory.findIndex(i => i.sku === decodedText.trim());
+                    if (idx !== -1) {
+                        inventory[idx].actualQty++;
+                        saveAndRender();
+                        const row = document.getElementById(`row-${idx}`);
+                        if(row) { 
+                            row.scrollIntoView({behavior:'smooth', block:'center'}); 
+                            row.classList.add('highlight'); 
+                            setTimeout(()=>row.classList.remove('highlight'), 2000); 
+                        }
+                    } else {
+                        alert("找不到此條碼/SKU: " + decodedText + "\n請先手動新增。");
+                    }
+                },
+                (errorMessage) => {
+                    // 掃描中但未辨識成功（不用理會，這是背景運作）
+                }
+            ).then(() => {
+                isScanning = true;
+            }).catch((err) => {
+                alert("無法開啟相機，請確保已給予瀏覽器相機權限！");
+                readerElement.style.display = "none";
+            });
+        } else {
+            html5QrCode.stop().then(() => {
+                isScanning = false;
+                html5QrCode = null;
+                readerElement.style.display = "none";
+            });
+        }
+    }
+
+    // --- 以下為原本的介面邏輯 ---
     function checkCustomCat() {
         const select = document.getElementById('catSelect');
         const customInput = document.getElementById('customCat');
@@ -125,14 +233,14 @@
 
     function addItem() {
         const name = document.getElementById('newName').value;
-        if (!name) return alert("請輸入名稱");
+        if (!name) return alert("請輸入產品名稱");
 
         const catSelect = document.getElementById('catSelect');
         const finalCat = (catSelect.value === 'custom') ? document.getElementById('customCat').value : catSelect.value;
 
         const item = {
-            category: finalCat || "未分類",
             area: document.getElementById('newArea').value || "未指定",
+            category: finalCat || "未分類",
             sku: document.getElementById('newSKU').value || "N/A",
             name: name,
             unit: document.getElementById('unitSelect').value,
@@ -145,7 +253,7 @@
         saveAndRender();
         document.getElementById('newName').value = '';
         document.getElementById('newPrice').value = '';
-        document.getElementById('newBook').value = '';
+        document.getElementById('newSKU').value = '';
     }
 
     function saveAndRender() {
@@ -153,7 +261,7 @@
             if (a.area !== b.area) return a.area.localeCompare(b.area);
             return (b.price * b.actualQty) - (a.price * a.actualQty);
         });
-        localStorage.setItem('gift_final_unit_v1', JSON.stringify(inventory));
+        localStorage.setItem('gift_cloud_v2', JSON.stringify(inventory));
         renderTable();
     }
 
@@ -176,7 +284,7 @@
                         <span class="tag tag-cat">${item.category}</span>
                     </td>
                     <td><b>${item.name}</b><br><small style="color:gray">SKU: ${item.sku}</small></td>
-                    <td>$${item.price.toLocaleString()}</td>
+                    <td>$${item.price}</td>
                     <td>
                         <div class="qty-ctrl">
                             <button class="circle-btn" onclick="adjust(${index},-1)">-</button>
@@ -208,21 +316,6 @@
         if(confirm("確定刪除此品項？")) { inventory.splice(index, 1); saveAndRender(); }
     }
 
-    function toggleScanner() {
-        if (!html5QrCode) {
-            html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
-                const idx = inventory.findIndex(i => i.sku === text.trim());
-                if (idx !== -1) {
-                    inventory[idx].actualQty++;
-                    saveAndRender();
-                    const row = document.getElementById(`row-${idx}`);
-                    if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('highlight'); setTimeout(()=>row.classList.remove('highlight'), 2000); }
-                } else { alert("找不到 SKU: " + text); }
-            });
-        } else { html5QrCode.stop().then(()=> { html5QrCode = null; document.getElementById('reader').innerHTML=''; }); }
-    }
-
     function exportToExcel() {
         let csv = "\uFEFF區域,類別,SKU,產品名稱,單位,單價,帳面數量,實盤數量,總價值(實盤),差異\n";
         inventory.forEach(i => {
@@ -232,11 +325,16 @@
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `禮品資產報告(含單位)_${new Date().toISOString().slice(0,10)}.csv`;
+        link.download = `禮品資產報告_${new Date().toISOString().slice(0,10)}.csv`;
         link.click();
     }
 
-    function confirmClear() { if(confirm("確定清空數據？")) { inventory=[]; saveAndRender(); } }
+    function confirmClear() { 
+        if(confirm("警告：這將清空你設備上的數據，確定嗎？")) { 
+            inventory=[]; 
+            saveAndRender(); 
+        } 
+    }
 
     renderTable();
 </script>
