@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>禮品庫存管理 - GGB</title>
+    <title>禮品庫存管理 - 終極 AI 視覺版</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        :root { --primary: #1a73e8; --success: #34a853; --warning: #fbbc04; --gray: #5f6368; }
+        :root { --primary: #1a73e8; --success: #34a853; --ai: #8e24aa; --gray: #5f6368; }
         body { font-family: -apple-system, sans-serif; background: #f4f6f9; padding: 15px; margin: 0; }
         .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         h2 { text-align: center; color: var(--primary); margin-bottom: 20px; }
         
-        /* 雲端同步區塊樣式 */
         .sync-bar { background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #a5d6a7; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
         .sync-btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; flex: 1; min-width: 120px; }
         .btn-download { background: #1a73e8; color: white; }
@@ -27,6 +26,8 @@
         button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .btn-blue { background: var(--primary); color: white; }
         .btn-green { background: var(--success); color: white; width: 100%; font-size: 1.1em; margin-top: 10px; }
+        .btn-ai { background: var(--ai); color: white; width: 100%; margin-top: 10px; font-size: 1.1em; border: 2px solid #ab47bc; box-shadow: 0 0 10px rgba(142,36,170,0.3); }
+        .btn-ai:active { transform: scale(0.98); }
         
         .summary-bar { background: #e8f0fe; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border: 1px solid #1a73e8; }
         .total-val { font-size: 1.5em; font-weight: bold; color: var(--primary); }
@@ -46,15 +47,21 @@
         .highlight { background-color: #fff9c4 !important; transition: 1s; }
         .unit-text { color: #888; font-size: 12px; margin-left: 2px; }
 
-        /* 相機畫面 */
+        /* 相機與 AI 畫面 */
         #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #1a73e8; margin-bottom: 10px; display: none; }
         #skuReader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #34a853; margin-bottom: 10px; display: none; }
+        
+        /* AI 視覺專區 */
+        #aiCameraBox { display: none; margin-top: 10px; border: 2px dashed var(--ai); padding: 10px; border-radius: 8px; background: #fdfafb; text-align: center; }
+        #aiVideo { width: 100%; max-width: 400px; border-radius: 8px; background: #000; }
+        #aiCanvas { display: none; }
+        #aiLoading { display: none; color: var(--ai); font-weight: bold; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>📦 禮品庫存系統 GBB用</h2>
+    <h2>✨ 禮品庫存系統 (AI 視覺版)</h2>
 
     <div class="sync-bar">
         <button class="sync-btn btn-download" onclick="downloadFromCloud()">⬇️ 1. 從雲端下載最新資料</button>
@@ -68,9 +75,22 @@
     </div>
 
     <div class="section">
+        <span class="section-title">🔍 盤點工具 (找貨 / 加數量)</span>
+        
         <div id="reader"></div>
-        <button class="btn-blue" style="width:100%" onclick="toggleScanner()">📷 開啟/關閉 盤點掃描 (找貨/加數量)</button>
-        <input type="text" id="search" placeholder="🔍 搜尋類別、區域、名稱、SKU 或單位..." onkeyup="renderTable()" style="width:100%; margin-top:10px; box-sizing:border-box;">
+        <button class="btn-blue" style="width:100%" onclick="toggleScanner()">📷 開啟 條碼掃描 (有條碼專用)</button>
+        
+        <button class="btn-ai" onclick="toggleAICamera()">✨ 開啟 AI 拍照辨識 (無條碼專用)</button>
+        
+        <div id="aiCameraBox">
+            <video id="aiVideo" autoplay playsinline></video>
+            <canvas id="aiCanvas"></canvas>
+            <br>
+            <button class="btn-ai" style="width:auto; padding: 10px 30px;" onclick="captureAndAnalyze()">📸 拍照並讓 AI 分析</button>
+            <div id="aiLoading">⏳ AI 正在思考中，請稍候... (約需 3-5 秒)</div>
+        </div>
+
+        <input type="text" id="search" placeholder="🔍 手動搜尋類別、區域、名稱或 SKU..." onkeyup="renderTable()" style="width:100%; margin-top:15px; box-sizing:border-box;">
     </div>
 
     <div class="section">
@@ -137,17 +157,121 @@
 </div>
 
 <script>
-    // 你的專屬 Google 網址
+    // --- 系統設定 (你的 API 與後台) ---
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
-
+    const GEMINI_API_KEY = "AIzaSyAKLAIgoH3Ou9wtvB_Aog0oAf-EXLk2YG8"; 
+    
     let inventory = JSON.parse(localStorage.getItem('gift_cloud_v2')) || [];
     
-    // 定義兩個掃描器
-    let html5QrCode; // 盤點用
+    let html5QrCode; 
     let isScanning = false;
+    let scanCooldown = false;
     
-    let skuScanner; // 新增SKU用
+    let skuScanner; 
     let isSkuScanning = false;
+
+    // --- 🤖 AI 視覺辨識功能核心 ---
+    let aiStream = null;
+
+    async function toggleAICamera() {
+        const box = document.getElementById('aiCameraBox');
+        const video = document.getElementById('aiVideo');
+        
+        if (box.style.display === "block") {
+            // 關閉相機
+            box.style.display = "none";
+            if (aiStream) aiStream.getTracks().forEach(track => track.stop());
+        } else {
+            // 開啟相機
+            // 確保關閉其他掃描器
+            if(isScanning) toggleScanner();
+            if(isSkuScanning) toggleSkuScanner();
+
+            box.style.display = "block";
+            try {
+                aiStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = aiStream;
+            } catch (err) {
+                alert("無法開啟相機進行 AI 辨識，請檢查權限設定！");
+                box.style.display = "none";
+            }
+        }
+    }
+
+    async function captureAndAnalyze() {
+        if(inventory.length === 0) {
+            alert("目前沒有庫存資料供 AI 比對。請先從雲端下載或手動新增！");
+            return;
+        }
+
+        const video = document.getElementById('aiVideo');
+        const canvas = document.getElementById('aiCanvas');
+        const loading = document.getElementById('aiLoading');
+        
+        // 1. 擷取影像並轉成 Base64
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        // 壓縮圖片以加快傳輸速度
+        const base64Image = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]; 
+
+        // 2. 準備清單給 Gemini 參考 (只傳送 SKU和名稱 節省資源)
+        const inventoryContext = inventory.map(i => `SKU: ${i.sku} | 名稱: ${i.name}`).join("\n");
+        
+        const promptText = `你是一個專業的香港禮品公司盤點助手。請仔細觀察這張照片中的物品，並從下方我們公司的【庫存清單】中，找出最符合的產品。\n\n【庫存清單】\n${inventoryContext}\n\n請以嚴格的 JSON 格式回覆，不要加其他廢話：\n{"sku": "最匹配的SKU (若無匹配請填寫 NEW)", "name": "對應的產品名稱", "confidence": "0到100的信心分數數字", "reason": "簡單說明為什麼你覺得是這個產品(繁體中文)"}`;
+
+        loading.style.display = "block";
+
+        try {
+            // 3. 呼叫 Gemini 1.5 Flash API
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: promptText },
+                            { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+                        ]
+                    }],
+                    generationConfig: { responseMimeType: "application/json" } // 強制回傳 JSON
+                })
+            });
+
+            const result = await response.json();
+            const aiData = JSON.parse(result.candidates[0].content.parts[0].text);
+            loading.style.display = "none";
+
+            // 4. 處理 AI 結果
+            if (aiData.sku === "NEW" || aiData.confidence < 50) {
+                alert(`🤖 AI 分析結果：\n\nAI 在庫存清單中找不到非常吻合的物品。\nAI 推測這可能是：${aiData.name}\n原因：${aiData.reason}\n\n請嘗試使用「手動搜尋」或在下方「新增禮品」中建立。`);
+            } else {
+                const confirmMsg = `✨ AI 成功辨識！✨\n\n🎯 產品：${aiData.name} (SKU: ${aiData.sku})\n📈 信心指數：${aiData.confidence}%\n💡 判斷原因：${aiData.reason}\n\n請問是否要將此產品的 實盤數量 +1 ？`;
+                
+                if(confirm(confirmMsg)) {
+                    const idx = inventory.findIndex(i => i.sku === aiData.sku);
+                    if(idx !== -1) {
+                        inventory[idx].actualQty++;
+                        saveAndRender();
+                        // 滾動並高亮
+                        const row = document.getElementById(`row-${idx}`);
+                        if(row) { 
+                            row.scrollIntoView({behavior:'smooth', block:'center'}); 
+                            row.classList.add('highlight'); 
+                            setTimeout(()=>row.classList.remove('highlight'), 2000); 
+                        }
+                    } else {
+                        alert("發生錯誤：AI 找到了 SKU，但在本地庫存中無法定位。");
+                    }
+                }
+            }
+
+        } catch (error) {
+            loading.style.display = "none";
+            alert("AI 辨識發生錯誤，請檢查網路連線或 API Key 額度。\n詳細錯誤：" + error);
+        }
+    }
+
 
     // --- 雲端同步功能 ---
     async function downloadFromCloud() {
@@ -165,7 +289,7 @@
                 document.getElementById('syncStatus').innerText = "狀態: 雲端目前沒有資料。";
             }
         } catch (error) {
-            document.getElementById('syncStatus').innerText = "狀態: 下載失敗 ❌ 請檢查網址是否正確。";
+            document.getElementById('syncStatus').innerText = "狀態: 下載失敗 ❌ 請檢查網址。";
             document.getElementById('syncStatus').style.color = "red";
         }
     }
@@ -177,9 +301,7 @@
             await fetch(GAS_URL, {
                 method: "POST",
                 mode: "no-cors", 
-                headers: {
-                    "Content-Type": "text/plain;charset=utf-8"
-                },
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
                 body: JSON.stringify(inventory)
             });
             document.getElementById('syncStatus').innerText = "狀態: 上傳雲端成功 ☁️✅ (" + new Date().toLocaleTimeString() + ")";
@@ -190,13 +312,10 @@
         }
     }
 
-// 新增一個防護開關，防止連續觸發
-    let scanCooldown = false; 
-
-    // --- 主掃描功能 (盤點加數量) 修復版 ---
+    // --- 傳統條碼掃描功能 ---
     function toggleScanner() {
-        // 防止兩個相機同時開啟衝突
         if (isSkuScanning) toggleSkuScanner(); 
+        if (document.getElementById('aiCameraBox').style.display === "block") toggleAICamera();
 
         const readerElement = document.getElementById('reader');
         if (!isScanning) {
@@ -206,12 +325,10 @@
 
             html5QrCode.start({ facingMode: "environment" }, config, 
                 (decodedText) => {
-                    // 【關鍵修復】如果系統正在「冷卻中」，就直接忽略這次掃描
                     if (scanCooldown) return;
 
                     const idx = inventory.findIndex(i => i.sku === decodedText.trim());
                     if (idx !== -1) {
-                        // --- 掃描成功的處理 ---
                         inventory[idx].actualQty++;
                         saveAndRender();
                         const row = document.getElementById(`row-${idx}`);
@@ -221,16 +338,11 @@
                             setTimeout(()=>row.classList.remove('highlight'), 2000); 
                         }
                         
-                        // 成功後鎖定 1 秒，防止同一個商品瞬間被加好幾次
                         scanCooldown = true;
                         setTimeout(() => { scanCooldown = false; }, 1000);
-
                     } else {
-                        // --- 掃描失敗的處理 ---
-                        scanCooldown = true; // 立刻鎖定掃描器
+                        scanCooldown = true; 
                         alert("清單中找不到條碼: " + decodedText + "\n請在下方「新增禮品」建立。");
-                        
-                        // 當你按下 OK 關閉警告後，給予 2.5 秒的時間把鏡頭移開，然後才重新開放掃描
                         setTimeout(() => { scanCooldown = false; }, 2500);
                     }
                 },
@@ -245,10 +357,10 @@
         }
     }
 
-    // --- 新增: 專屬 SKU 掃描功能 (填入格子用) ---
+    // --- 新增 SKU 掃描功能 ---
     function toggleSkuScanner() {
-        // 防止兩個相機同時開啟衝突
         if (isScanning) toggleScanner();
+        if (document.getElementById('aiCameraBox').style.display === "block") toggleAICamera();
 
         const skuReaderElement = document.getElementById('skuReader');
         if (!isSkuScanning) {
@@ -258,17 +370,12 @@
 
             skuScanner.start({ facingMode: "environment" }, config, 
                 (decodedText) => {
-                    // 1. 成功掃描後填入輸入框
                     document.getElementById('newSKU').value = decodedText.trim();
-                    
-                    // 2. 自動關閉相機
                     skuScanner.stop().then(() => {
                         isSkuScanning = false;
                         skuScanner = null;
                         skuReaderElement.style.display = "none";
                     });
-
-                    // (可選) 播放提示音
                     try { new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play(); } catch(e){}
                 },
                 (errorMessage) => {}
@@ -282,7 +389,7 @@
         }
     }
 
-    // --- 以下為原本的介面邏輯 ---
+    // --- 基本介面邏輯 ---
     function checkCustomCat() {
         const select = document.getElementById('catSelect');
         const customInput = document.getElementById('customCat');
@@ -398,4 +505,3 @@
 </script>
 </body>
 </html>
-
