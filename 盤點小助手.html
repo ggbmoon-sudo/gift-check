@@ -2,489 +2,375 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>禮品庫存管理 BY GBBMOON</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>禮品盤點 BYMOON</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        :root { --primary: #1a73e8; --success: #34a853; --ai: #8e24aa; --gray: #5f6368; }
-        body { font-family: -apple-system, sans-serif; background: #f4f6f9; padding: 15px; margin: 0; }
-        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: var(--primary); margin-bottom: 20px; }
-        
-        .sync-bar { background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #a5d6a7; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
-        .sync-btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; flex: 1; min-width: 120px; }
-        .btn-download { background: #1a73e8; color: white; }
-        .btn-upload { background: #34a853; color: white; }
-        #syncStatus { font-size: 13px; color: #555; width: 100%; text-align: center; margin-top: 5px; }
+        /* iOS 原生配色與變數 */
+        :root { 
+            --ios-bg: #F2F2F7; 
+            --ios-card: #FFFFFF; 
+            --ios-blue: #007AFF; 
+            --ios-green: #34C759; 
+            --ios-purple: #AF52DE; 
+            --ios-red: #FF3B30;
+            --ios-text: #1C1C1E;
+            --ios-gray: #8E8E93;
+            --ios-light-gray: #E5E5EA;
+            --safe-top: env(safe-area-inset-top, 20px);
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+        }
 
-        .section { background: #fff; border: 1px solid #dadce0; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        .section-title { font-weight: bold; margin-bottom: 10px; display: block; color: var(--gray); font-size: 0.9em; }
+        /* 基礎重置與排版 */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: var(--ios-bg); 
+            color: var(--ios-text); 
+            margin: 0; 
+            padding: 0;
+            /* 預留底部導覽列空間 */
+            padding-bottom: calc(100px + var(--safe-bottom)); 
+        }
 
-        .input-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-        input, select { padding: 12px; border: 1px solid #dadce0; border-radius: 6px; flex: 1; min-width: 120px; font-size: 14px; }
-        
-        button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-blue { background: var(--primary); color: white; }
-        .btn-green { background: var(--success); color: white; width: 100%; font-size: 1.1em; margin-top: 10px; }
-        .btn-ai { background: var(--ai); color: white; width: 100%; font-size: 1.1em; border: 2px solid #ab47bc; box-shadow: 0 0 10px rgba(142,36,170,0.3); }
-        .btn-ai:active { transform: scale(0.98); }
-        
-        .summary-bar { background: #e8f0fe; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border: 1px solid #1a73e8; }
-        .total-val { font-size: 1.5em; font-weight: bold; color: var(--primary); }
+        /* 頂部毛玻璃 Header */
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(242, 242, 247, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: calc(10px + var(--safe-top)) 16px 10px;
+            border-bottom: 0.5px solid rgba(0,0,0,0.1);
+        }
 
-        .table-container { overflow-x: auto; margin-top: 15px; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 800px; }
-        th, td { border-bottom: 1px solid #eee; padding: 12px 8px; text-align: left; }
-        th { background: #f8f9fa; color: var(--gray); position: sticky; top: 0; }
+        .header-title { font-size: 28px; font-weight: 700; margin: 0 0 10px 0; letter-spacing: -0.5px; }
         
-        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-bottom: 4px; }
-        .tag-area { background: #e3e3e3; color: #333; }
-        .tag-cat { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
-        
-        .qty-ctrl { display: flex; align-items: center; gap: 5px; }
-        .qty-input { width: 55px; text-align: center; font-weight: bold; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        .circle-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #ccc; background: #fff; font-size: 18px; line-height: 1; }
-        .highlight { background-color: #fff9c4 !important; transition: 1s; }
-        .unit-text { color: #888; font-size: 12px; margin-left: 2px; }
+        /* 頂部同步與總金額儀表板 */
+        .dashboard {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--ios-card);
+            border-radius: 14px;
+            padding: 12px 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .total-box { display: flex; flex-direction: column; }
+        .total-label { font-size: 12px; color: var(--ios-gray); font-weight: 500; text-transform: uppercase; }
+        .total-val { font-size: 22px; font-weight: 700; color: var(--ios-blue); }
+        .sync-group { display: flex; gap: 8px; }
+        .sync-icon-btn {
+            background: var(--ios-light-gray);
+            color: var(--ios-text);
+            border: none;
+            border-radius: 50%;
+            width: 36px; height: 36px;
+            font-size: 16px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .sync-icon-btn:active { transform: scale(0.9); background: #D1D1D6; }
+        #syncStatus { font-size: 11px; color: var(--ios-gray); text-align: right; margin-top: 4px; }
 
-        /* 相機與 AI 畫面 */
-        #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #1a73e8; margin-bottom: 10px; display: none; }
-        #skuReader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #34a853; margin-bottom: 10px; display: none; }
+        /* 主要內容區 */
+        .container { padding: 16px; }
+        .section-title { font-size: 20px; font-weight: 600; margin: 20px 0 12px; }
+
+        /* 搜尋框 (iOS Style) */
+        .search-bar {
+            width: 100%;
+            padding: 10px 14px 10px 36px;
+            background: #E3E3E8 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%238E8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>') no-repeat 10px center;
+            border: none;
+            border-radius: 10px;
+            font-size: 17px;
+            margin-bottom: 16px;
+            outline: none;
+        }
+
+        /* 卡片式列表 (取代傳統 Table) */
+        #inventoryList { display: flex; flex-direction: column; gap: 12px; }
+        .ios-card {
+            background: var(--ios-card);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; gap: 10px;
+            transition: background 0.2s;
+        }
+        .highlight-card { background-color: #F8FDE8 !important; transition: 0.5s; } /* 掃描成功高亮 */
         
-        /* AI 視覺專區 */
-        #aiCameraBox { display: none; margin-top: 10px; border: 2px dashed var(--ai); padding: 15px; border-radius: 8px; background: #fdfafb; text-align: center; }
-        #aiVideo { width: 100%; max-width: 400px; border-radius: 8px; background: #000; margin-bottom: 10px;}
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .item-name { font-size: 17px; font-weight: 600; margin: 0 0 4px 0; line-height: 1.3; }
+        .item-sku { font-size: 13px; color: var(--ios-gray); margin: 0; }
+        
+        .tag-group { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+        .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 500; }
+        .tag-area { background: #E5F0FF; color: #007AFF; }
+        .tag-cat { background: #E8F5E9; color: #34C759; }
+
+        .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+        .price-info { font-size: 15px; font-weight: 500; }
+        .total-price-text { font-size: 12px; color: var(--ios-gray); display: block; }
+
+        /* iOS 原生風格步進器 (數量加減) */
+        .stepper { display: flex; align-items: center; background: var(--ios-light-gray); border-radius: 8px; overflow: hidden; }
+        .stepper-btn { 
+            background: none; border: none; font-size: 20px; font-weight: 400; color: var(--ios-blue); 
+            width: 36px; height: 32px; display: flex; justify-content: center; align-items: center; cursor: pointer;
+        }
+        .stepper-btn:active { background: #D1D1D6; }
+        .qty-input {
+            width: 44px; height: 32px; border: none; background: none; text-align: center; font-size: 16px; font-weight: 600;
+            -moz-appearance: textfield; padding: 0;
+        }
+        .qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .unit-text { font-size: 13px; color: var(--ios-gray); margin-left: 6px; }
+
+        .delete-btn { background: none; border: none; color: var(--ios-red); font-size: 20px; padding: 0 0 0 10px; cursor: pointer; }
+
+        /* 模態視窗 (掃描器 & 新增表單) */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 1000; align-items: flex-end;
+            backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: var(--ios-bg); width: 100%; border-radius: 20px 20px 0 0;
+            padding: 20px 16px calc(20px + var(--safe-bottom));
+            max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+            animation: slideUp 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-title { font-size: 20px; font-weight: 700; margin: 0; }
+        .close-btn { background: var(--ios-light-gray); border: none; border-radius: 16px; padding: 6px 12px; font-weight: 600; color: var(--ios-text); font-size: 14px; }
+
+        /* 表單樣式 */
+        .form-group { margin-bottom: 12px; }
+        .form-label { display: block; font-size: 13px; color: var(--ios-gray); margin-bottom: 6px; margin-left: 4px; }
+        .ios-input, .ios-select {
+            width: 100%; padding: 14px; background: var(--ios-card); border: 1px solid #D1D1D6;
+            border-radius: 12px; font-size: 16px; outline: none; -webkit-appearance: none;
+        }
+        .ios-input:focus, .ios-select:focus { border-color: var(--ios-blue); box-shadow: 0 0 0 2px rgba(0,122,255,0.2); }
+        .form-row { display: flex; gap: 10px; }
+
+        /* 共用按鈕樣式 */
+        .action-btn {
+            width: 100%; padding: 16px; border: none; border-radius: 14px; font-size: 17px; font-weight: 600;
+            color: white; cursor: pointer; transition: transform 0.1s; text-align: center; display: block; margin-top: 10px;
+        }
+        .action-btn:active { transform: scale(0.97); opacity: 0.9; }
+        .btn-primary { background: var(--ios-blue); }
+        .btn-ai { background: linear-gradient(135deg, #AF52DE, #5E5CE6); }
+        .btn-success { background: var(--ios-green); }
+
+        /* 相機畫面修飾 */
+        #reader, #skuReader { width: 100%; border-radius: 16px; overflow: hidden; margin-bottom: 15px; background: black; }
+        #aiCameraBox { text-align: center; }
+        #aiVideo { width: 100%; border-radius: 16px; background: #000; margin-bottom: 15px; }
         #aiCanvas { display: none; }
-        #aiLoading { display: none; color: var(--ai); font-weight: bold; margin-top: 15px; }
-        .ai-btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        #aiLoading { display: none; color: var(--ios-purple); font-weight: 600; margin-top: 15px; font-size: 15px; }
+
+        /* 💡 底部懸浮導覽列 (最精華的 UX 改動) */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border-top: 0.5px solid rgba(0,0,0,0.1);
+            padding: 10px 16px calc(10px + var(--safe-bottom));
+            display: flex; justify-content: space-around; gap: 12px;
+            z-index: 100;
+        }
+        .nav-btn {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: none; border: none; color: var(--ios-gray); font-size: 11px; font-weight: 500; gap: 4px; cursor: pointer;
+        }
+        .nav-btn .icon { font-size: 24px; line-height: 1; margin-bottom: 2px; }
+        .nav-btn.scan { color: var(--ios-blue); }
+        .nav-btn.ai { color: var(--ios-purple); }
+        .nav-btn.add { color: var(--ios-green); }
+        .nav-btn:active { opacity: 0.5; }
+
+        .settings-btn { margin-top: 30px; background: none; border: none; color: var(--ios-gray); width: 100%; text-align: center; font-size: 14px; padding: 10px; text-decoration: underline;}
+
     </style>
 </head>
 <body>
 
+<div class="sticky-header">
+    <h1 class="header-title">盤點助手 BY moon_v1</h1>
+    <div class="dashboard">
+        <div class="total-box">
+            <span class="total-label">資產總值</span>
+            <span class="total-val" id="grandTotal">$0</span>
+        </div>
+        <div>
+            <div class="sync-group">
+                <button class="sync-icon-btn" onclick="downloadFromCloud()" title="下載">⬇️</button>
+                <button class="sync-icon-btn" style="color: var(--ios-green);" onclick="uploadToCloud()" title="上傳">⬆️</button>
+            </div>
+            <div id="syncStatus">尚未同步</div>
+        </div>
+    </div>
+</div>
+
 <div class="container">
-    <h2>✨ 禮品庫存系統 GBBMOON_v1.2</h2>
+    <input type="text" id="search" class="search-bar" placeholder="搜尋名稱、SKU 或區域..." onkeyup="renderList()">
+    
+    <div id="inventoryList">
+        </div>
 
-    <div class="sync-bar">
-        <button class="sync-btn btn-download" onclick="downloadFromCloud()">⬇️ 1. 從雲端下載最新資料</button>
-        <button class="sync-btn btn-upload" onclick="uploadToCloud()">⬆️ 2. 盤點後上傳至雲端</button>
-        <div id="syncStatus">狀態: 尚未連線</div>
-    </div>
+    <button class="settings-btn" onclick="exportToExcel()">匯出 Excel 報表</button>
+    <button class="settings-btn" style="color:var(--ios-red); margin-top:5px;" onclick="confirmClear()">清空本機資料</button>
+</div>
 
-    <div class="summary-bar">
-        <span>目前庫存總價值：</span>
-        <span class="total-val" id="grandTotal">$0</span>
-    </div>
+<div class="bottom-nav">
+    <button class="nav-btn scan" onclick="openModal('scannerModal'); toggleScanner();">
+        <span class="icon">📷</span>
+        <span>條碼盤點</span>
+    </button>
+    <button class="nav-btn ai" onclick="openModal('aiModal'); toggleAICamera();">
+        <span class="icon">✨</span>
+        <span>AI 視覺</span>
+    </button>
+    <button class="nav-btn add" onclick="openModal('addModal')">
+        <span class="icon">➕</span>
+        <span>手動建檔</span>
+    </button>
+</div>
 
-    <div class="section">
-        <span class="section-title">🔍 盤點工具 (找貨 / 加數量)</span>
-        
+<div id="scannerModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">條碼盤點</h2>
+            <button class="close-btn" onclick="closeModal('scannerModal'); if(isScanning) toggleScanner();">關閉</button>
+        </div>
         <div id="reader"></div>
-        <button class="btn-blue" style="width:100%; margin-bottom:10px;" onclick="toggleScanner()">📷 開啟 條碼掃描 (有條碼專用)</button>
-        
-        <button class="btn-ai" onclick="toggleAICamera()">✨ 開啟 AI 相機 (無條碼專用)</button>
-        
+        <p style="text-align:center; color:var(--ios-gray); font-size:13px;">將條碼置於框內即可自動 +1</p>
+    </div>
+</div>
+
+<div id="aiModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">✨ AI 視覺助手</h2>
+            <button class="close-btn" onclick="closeModal('aiModal'); if(document.getElementById('aiCameraBox').style.display === 'block') toggleAICamera();">關閉</button>
+        </div>
         <div id="aiCameraBox">
             <video id="aiVideo" autoplay playsinline></video>
             <canvas id="aiCanvas"></canvas>
             
-            <div class="ai-btn-group">
-                <button class="btn-ai" style="flex:1; margin-top:0;" onclick="captureAndAnalyze('count')">🔍 AI 盤點 (找舊貨+1)</button>
-                <button class="btn-green" style="flex:1; margin-top:0;" onclick="captureAndAnalyze('add')">📝 AI 建檔 (自動填表單)</button>
+            <div style="display:flex; gap:10px;">
+                <button class="action-btn btn-ai" style="flex:1" onclick="captureAndAnalyze('count')">🔍 找舊貨 +1</button>
+                <button class="action-btn btn-success" style="flex:1" onclick="captureAndAnalyze('add')">📝 智能建檔</button>
             </div>
-            
-            <div id="aiLoading">⏳ AI 正在思考中，請稍候... (約需 3-5 秒)</div>
+            <div id="aiLoading">⏳ AI 正在思考中... (3-5秒)</div>
         </div>
-
-        <input type="text" id="search" placeholder="🔍 手動搜尋類別、區域、名稱或 SKU..." onkeyup="renderTable()" style="width:100%; margin-top:15px; box-sizing:border-box;">
     </div>
+</div>
 
-    <div class="section" id="addSection">
-        <span class="section-title">➕ 新增禮品 (無資料時在此建立)</span>
-        <div class="input-row">
-            <select id="catSelect" onchange="checkCustomCat()">
-                <option value="HAMPER類(cheap餅)">1. HAMPER類(cheap餅)</option>
-                <option value="HAMPER類(朱古力,餅乾)">2. HAMPER類(朱古力,餅乾)</option>
-                <option value="BB野">3. BB野</option>
-                <option value="籃">4. 籃</option>
-                <option value="ESG">5. ESG</option>
-                <option value="酒">6. 酒</option>
-                <option value="果汁">7. 果汁</option>
-                <option value="永生花">8. 永生花</option>
-                <option value="custom">9. 自定義 (手寫)</option>
-            </select>
-            <input type="text" id="customCat" placeholder="請輸入類別名稱" style="display:none; border-color: var(--primary);">
-            <input type="text" id="newArea" placeholder="區域 (如: A-01)">
+<div id="addModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">新增禮品</h2>
+            <button class="close-btn" onclick="closeModal('addModal')">取消</button>
         </div>
-
-        <div id="skuReader"></div>
-
-        <div class="input-row">
-            <div style="display:flex; flex:1; gap:5px; min-width: 140px;">
-                <input type="text" id="newSKU" placeholder="SKU 編號" style="flex:1; min-width: 60px;">
-                <button type="button" class="btn-green" style="margin-top:0; width:auto; padding:0 15px;" onclick="toggleSkuScanner()" title="開啟相機掃描條碼">📷</button>
+        
+        <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+                <label class="form-label">SKU 編號</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="newSKU" class="ios-input" placeholder="掃描或輸入">
+                    <button class="sync-icon-btn" style="background:var(--ios-green); color:white; border-radius:12px; width:48px; height:48px;" onclick="toggleSkuScanner()">📷</button>
+                </div>
             </div>
-            
-            <input type="text" id="newName" placeholder="產品名稱 (必填)">
-            <select id="unitSelect">
-                <option value="件" selected>單位: 件</option>
-                <option value="箱">單位: 箱</option>
-                <option value="樽">單位: 樽</option>
-                <option value="套">單位: 套</option>
-                <option value="其他">單位: 其他</option>
-            </select>
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">區域</label>
+                <input type="text" id="newArea" class="ios-input" placeholder="例: A-01">
+            </div>
         </div>
-        <div class="input-row">
-            <input type="number" id="newPrice" placeholder="單價 ($)">
-            <input type="number" id="newBook" placeholder="帳面數量">
-            <button class="btn-blue" style="flex:1" onclick="addItem()">加入清單</button>
+
+        <div id="skuReader" style="display:none;"></div>
+
+        <div class="form-group">
+            <label class="form-label">產品名稱 (必填)</label>
+            <input type="text" id="newName" class="ios-input" placeholder="請輸入完整名稱">
         </div>
-    </div>
 
-    <div class="input-row">
-        <button class="btn-green" onclick="exportToExcel()">📊 導出備份 (Excel)</button>
-        <button onclick="confirmClear()" style="background:#eee; color:#666; border-radius:6px; margin-top:10px;">清空本地數據</button>
-    </div>
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">分類</label>
+                <select id="catSelect" class="ios-select" onchange="checkCustomCat()">
+                    <option value="HAMPER類(cheap餅)">HAMPER(cheap餅)</option>
+                    <option value="HAMPER類(朱古力,餅乾)">HAMPER(朱古力)</option>
+                    <option value="BB野">BB野</option>
+                    <option value="籃">籃</option>
+                    <option value="ESG">ESG</option>
+                    <option value="酒">酒</option>
+                    <option value="果汁">果汁</option>
+                    <option value="永生花">永生花</option>
+                    <option value="custom">自定義...</option>
+                </select>
+                <input type="text" id="customCat" class="ios-input" placeholder="輸入新分類" style="display:none; margin-top:8px;">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">單位</label>
+                <select id="unitSelect" class="ios-select">
+                    <option value="件" selected>件</option>
+                    <option value="箱">箱</option>
+                    <option value="樽">樽</option>
+                    <option value="套">套</option>
+                    <option value="其他">其他</option>
+                </select>
+            </div>
+        </div>
 
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>區域/類別</th>
-                    <th>產品名稱 / SKU</th>
-                    <th>單價</th>
-                    <th>實盤數量 (單位)</th>
-                    <th>總價 (實盤)</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-        </table>
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">單價 ($)</label>
+                <input type="number" id="newPrice" class="ios-input" placeholder="0" inputmode="decimal">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">初始實盤數量</label>
+                <input type="number" id="newBook" class="ios-input" placeholder="0" inputmode="numeric">
+            </div>
+        </div>
+
+        <button class="action-btn btn-primary" onclick="addItem()">加入清單</button>
     </div>
 </div>
 
 <script>
     // --- 系統設定 ---
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
-    
     let inventory = JSON.parse(localStorage.getItem('gift_cloud_v2')) || [];
     
-    let html5QrCode; 
-    let isScanning = false;
-    let scanCooldown = false;
-    
-    let skuScanner; 
-    let isSkuScanning = false;
+    // --- UI 輔助函數 ---
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function vibrate() { if(navigator.vibrate) navigator.vibrate(50); } // 輕微震動回饋 (Android支援, iOS Safari視覺為主)
 
-    // --- 🤖 AI 視覺辨識功能核心 ---
+    // --- 相機狀態變數 ---
+    let html5QrCode; let isScanning = false; let scanCooldown = false;
+    let skuScanner; let isSkuScanning = false;
     let aiStream = null;
 
-    async function toggleAICamera() {
-        const box = document.getElementById('aiCameraBox');
-        const video = document.getElementById('aiVideo');
-        
-        if (box.style.display === "block") {
-            box.style.display = "none";
-            if (aiStream) aiStream.getTracks().forEach(track => track.stop());
-        } else {
-            if(isScanning) toggleScanner();
-            if(isSkuScanning) toggleSkuScanner();
-
-            box.style.display = "block";
-            try {
-                aiStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                video.srcObject = aiStream;
-            } catch (err) {
-                alert("無法開啟相機進行 AI 辨識，請檢查權限設定！");
-                box.style.display = "none";
-            }
-        }
-    }
-
-    async function captureAndAnalyze(mode) {
-        if(mode === 'count' && inventory.length === 0) {
-            alert("目前沒有庫存資料供 AI 比對。請先從雲端下載或手動新增！");
-            return;
-        }
-
-        const video = document.getElementById('aiVideo');
-        const canvas = document.getElementById('aiCanvas');
-        const loading = document.getElementById('aiLoading');
-        
-        // 1. 擷取影像並轉成 Base64
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        const base64Image = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]; 
-
-        // 2. 準備 Prompt
-        let promptText = "";
-        if (mode === 'count') {
-            const inventoryContext = inventory.map(i => `SKU: ${i.sku} | 名稱: ${i.name}`).join("\n");
-            promptText = `你是一個專業的香港禮品公司盤點助手。請觀察照片，並從下方【庫存清單】中找出最符合的產品。\n\n【庫存清單】\n${inventoryContext}\n\n請以嚴格的 JSON 格式回覆：\n{"sku": "最匹配的SKU (若無匹配請填寫 NEW)", "name": "對應的產品名稱", "confidence": "0到100的數字", "reason": "簡單說明原因(繁體中文)"}`;
-        } else if (mode === 'add') {
-            promptText = `你是一個專業的香港禮品公司建檔助手。請觀察這件新禮品，自動填寫建檔表單。請回傳嚴格的 JSON 格式：\n{"name": "產品詳細名稱(包含品牌或特徵)", "category": "最接近的類別", "unit": "單位(件/箱/樽/套)", "isCustomCategory": true或false}\n\n類別請從以下嚴格選擇：HAMPER類(cheap餅), HAMPER類(朱古力,餅乾), BB野, 籃, ESG, 酒, 果汁, 永生花。如果都不像，請將 isCustomCategory 設為 true，並在 category 填寫你自訂的類別名稱。`;
-        }
-
-        loading.style.display = "block";
-
-        try {
-            // 發送請求給 Google Apps Script (金鑰已安全隱藏在後台)
-            const payload = {
-                action: "gemini",
-                prompt: promptText,
-                image: base64Image
-            };
-
-            const response = await fetch(GAS_URL, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
-            
-            // 🛡️ 防呆機制 1：檢查是不是因為沒更新到新版 GAS 後台
-            if (result.status === "success" && !result.candidates) {
-                alert("⚠️ 系統提示：你的 Google Apps Script 後台還在運行舊版本！\n請回到 Google 試算表，點擊「部署」>「管理部署」> 編輯並務必選擇「新版本(New version)」！");
-                loading.style.display = "none";
-                return;
-            }
-
-            // 🛡️ 防呆機制 2：檢查後台代碼是否有錯誤
-            if (result.status === "error") {
-                alert("❌ 雲端後台錯誤：\n" + result.message);
-                loading.style.display = "none";
-                return;
-            }
-
-            // 🛡️ 防呆機制 3：檢查 Gemini API (例如 API Key 錯誤)
-            if (result.error) {
-                alert("🤖 AI 拒絕回應：\n" + result.error.message);
-                loading.style.display = "none";
-                return;
-            }
-
-            // 🛡️ 防呆機制 4：檢查是否被安全機制阻擋
-            if (!result.candidates || result.candidates.length === 0) {
-                alert("🛑 AI 無法辨識此圖片，可能是照片模糊或觸發了安全過濾機制。");
-                loading.style.display = "none";
-                return;
-            }
-
-            // 解析 Gemini 回傳的 JSON 文字
-            const aiText = result.candidates[0].content.parts[0].text;
-            const cleanJsonText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
-            const aiData = JSON.parse(cleanJsonText);
-            
-            loading.style.display = "none";
-
-            // --- 處理 AI 結果的邏輯 ---
-            if (mode === 'count') {
-                if (aiData.sku === "NEW" || aiData.confidence < 50) {
-                    alert(`🤖 AI 推測這可能是：${aiData.name}\n但相似度太低，請使用「📝 AI 建檔」來新增此物品。`);
-                } else {
-                    if(confirm(`✨ AI 成功辨識！✨\n\n🎯 產品：${aiData.name}\n📈 信心指數：${aiData.confidence}%\n💡 判斷原因：${aiData.reason}\n\n請問是否要將此產品數量 +1 ？`)) {
-                        const idx = inventory.findIndex(i => i.sku === aiData.sku);
-                        if(idx !== -1) {
-                            inventory[idx].actualQty++;
-                            saveAndRender();
-                            const row = document.getElementById(`row-${idx}`);
-                            if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('highlight'); setTimeout(()=>row.classList.remove('highlight'), 2000); }
-                        }
-                    }
-                }
-            } else if (mode === 'add') {
-                document.getElementById('newName').value = aiData.name;
-                const catSelect = document.getElementById('catSelect');
-                const customCatInput = document.getElementById('customCat');
-                if (aiData.isCustomCategory) {
-                    catSelect.value = "custom";
-                    customCatInput.style.display = "block";
-                    customCatInput.value = aiData.category;
-                } else {
-                    catSelect.value = aiData.category;
-                    customCatInput.style.display = "none";
-                }
-                const unitSelect = document.getElementById('unitSelect');
-                let unitFound = false;
-                for(let i=0; i<unitSelect.options.length; i++) {
-                    if(unitSelect.options[i].value === aiData.unit) {
-                        unitSelect.selectedIndex = i;
-                        unitFound = true; break;
-                    }
-                }
-                if(!unitFound) unitSelect.value = "其他";
-
-                toggleAICamera();
-                document.getElementById('addSection').scrollIntoView({behavior: 'smooth'});
-                document.getElementById('addSection').style.boxShadow = "0 0 15px rgba(142,36,170,0.5)";
-                setTimeout(() => { document.getElementById('addSection').style.boxShadow = "none"; }, 2000);
-                alert(`✅ AI 已自動填寫產品名稱與類別！\n\nAI 判定：${aiData.name}\n請確認內容，補上「單價」與「SKU(若有)」後即可加入清單。`);
-            }
-
-        } catch (error) {
-            loading.style.display = "none";
-            alert("網頁解析發生錯誤，請截圖此訊息回報：\n" + error.message);
-        }
-    }
-
-    // --- 其餘原有功能保持不變 ---
-    async function downloadFromCloud() {
-        document.getElementById('syncStatus').innerText = "狀態: 正在下載資料...";
-        document.getElementById('syncStatus').style.color = "blue";
-        try {
-            const response = await fetch(GAS_URL);
-            const data = await response.json();
-            if (data && data.length > 0) {
-                inventory = data;
-                saveAndRender();
-                document.getElementById('syncStatus').innerText = "狀態: 下載成功 ✅ (" + new Date().toLocaleTimeString() + ")";
-                document.getElementById('syncStatus').style.color = "green";
-            } else {
-                document.getElementById('syncStatus').innerText = "狀態: 雲端目前沒有資料。";
-            }
-        } catch (error) {
-            document.getElementById('syncStatus').innerText = "狀態: 下載失敗 ❌ 請檢查網址。";
-            document.getElementById('syncStatus').style.color = "red";
-        }
-    }
-
-   async function uploadToCloud() {
-        document.getElementById('syncStatus').innerText = "狀態: 正在上傳資料...";
-        document.getElementById('syncStatus').style.color = "blue";
-        try {
-            await fetch(GAS_URL, {
-                method: "POST",
-                mode: "no-cors", 
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify(inventory)
-            });
-            document.getElementById('syncStatus').innerText = "狀態: 上傳雲端成功 ☁️✅ (" + new Date().toLocaleTimeString() + ")";
-            document.getElementById('syncStatus').style.color = "green";
-        } catch (error) {
-            document.getElementById('syncStatus').innerText = "狀態: 上傳失敗 ❌ " + error;
-            document.getElementById('syncStatus').style.color = "red";
-        }
-    }
-
-    function toggleScanner() {
-        if (isSkuScanning) toggleSkuScanner(); 
-        if (document.getElementById('aiCameraBox').style.display === "block") toggleAICamera();
-
-        const readerElement = document.getElementById('reader');
-        if (!isScanning) {
-            html5QrCode = new Html5Qrcode("reader");
-            readerElement.style.display = "block";
-            const config = { fps: 10, qrbox: { width: 300, height: 120 } };
-
-            html5QrCode.start({ facingMode: "environment" }, config, 
-                (decodedText) => {
-                    if (scanCooldown) return;
-
-                    const idx = inventory.findIndex(i => i.sku === decodedText.trim());
-                    if (idx !== -1) {
-                        inventory[idx].actualQty++;
-                        saveAndRender();
-                        const row = document.getElementById(`row-${idx}`);
-                        if(row) { 
-                            row.scrollIntoView({behavior:'smooth', block:'center'}); 
-                            row.classList.add('highlight'); 
-                            setTimeout(()=>row.classList.remove('highlight'), 2000); 
-                        }
-                        scanCooldown = true;
-                        setTimeout(() => { scanCooldown = false; }, 1000);
-                    } else {
-                        scanCooldown = true; 
-                        alert("清單中找不到條碼: " + decodedText + "\n請在下方「新增禮品」建立。");
-                        setTimeout(() => { scanCooldown = false; }, 2500);
-                    }
-                },
-                (errorMessage) => {}
-            ).then(() => { isScanning = true; }).catch((err) => { alert("無法開啟相機！"); readerElement.style.display = "none"; });
-        } else {
-            html5QrCode.stop().then(() => {
-                isScanning = false;
-                html5QrCode = null;
-                readerElement.style.display = "none";
-            });
-        }
-    }
-
-    function toggleSkuScanner() {
-        if (isScanning) toggleScanner();
-        if (document.getElementById('aiCameraBox').style.display === "block") toggleAICamera();
-
-        const skuReaderElement = document.getElementById('skuReader');
-        if (!isSkuScanning) {
-            skuScanner = new Html5Qrcode("skuReader");
-            skuReaderElement.style.display = "block";
-            const config = { fps: 10, qrbox: { width: 300, height: 120 } };
-
-            skuScanner.start({ facingMode: "environment" }, config, 
-                (decodedText) => {
-                    document.getElementById('newSKU').value = decodedText.trim();
-                    skuScanner.stop().then(() => {
-                        isSkuScanning = false;
-                        skuScanner = null;
-                        skuReaderElement.style.display = "none";
-                    });
-                    try { new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play(); } catch(e){}
-                },
-                (errorMessage) => {}
-            ).then(() => { isSkuScanning = true; }).catch((err) => { alert("無法開啟相機！"); skuReaderElement.style.display = "none"; });
-        } else {
-            skuScanner.stop().then(() => {
-                isSkuScanning = false;
-                skuScanner = null;
-                skuReaderElement.style.display = "none";
-            });
-        }
-    }
-
-    function checkCustomCat() {
-        const select = document.getElementById('catSelect');
-        const customInput = document.getElementById('customCat');
-        customInput.style.display = (select.value === 'custom') ? 'block' : 'none';
-    }
-
-    function addItem() {
-        const name = document.getElementById('newName').value;
-        if (!name) return alert("請輸入產品名稱");
-
-        const catSelect = document.getElementById('catSelect');
-        const finalCat = (catSelect.value === 'custom') ? document.getElementById('customCat').value : catSelect.value;
-
-        const item = {
-            area: document.getElementById('newArea').value || "未指定",
-            category: finalCat || "未分類",
-            sku: document.getElementById('newSKU').value || "N/A",
-            name: name,
-            unit: document.getElementById('unitSelect').value,
-            price: parseFloat(document.getElementById('newPrice').value) || 0,
-            bookQty: parseInt(document.getElementById('newBook').value) || 0,
-            actualQty: 0
-        };
-
-        inventory.push(item);
-        saveAndRender();
-        document.getElementById('newName').value = '';
-        document.getElementById('newPrice').value = '';
-        document.getElementById('newSKU').value = '';
-    }
-
-    function saveAndRender() {
-        inventory.sort((a, b) => {
-            if (a.area !== b.area) return a.area.localeCompare(b.area);
-            return (b.price * b.actualQty) - (a.price * a.actualQty);
-        });
-        localStorage.setItem('gift_cloud_v2', JSON.stringify(inventory));
-        renderTable();
-    }
-
-    function renderTable() {
+    // ==========================================
+    // 渲染清單 (全新 iOS 卡片式)
+    // ==========================================
+    function renderList() {
         const query = document.getElementById('search').value.toLowerCase();
-        const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = '';
+        const listContainer = document.getElementById('inventoryList');
+        listContainer.innerHTML = '';
         let grandTotal = 0;
 
         inventory.forEach((item, index) => {
@@ -492,33 +378,43 @@
             grandTotal += itemTotal;
 
             if (Object.values(item).some(val => String(val).toLowerCase().includes(query))) {
-                const tr = document.createElement('tr');
-                tr.id = `row-${index}`;
-                tr.innerHTML = `
-                    <td>
-                        <span class="tag tag-area">${item.area}</span><br>
-                        <span class="tag tag-cat">${item.category}</span>
-                    </td>
-                    <td><b>${item.name}</b><br><small style="color:gray">SKU: ${item.sku}</small></td>
-                    <td>$${item.price}</td>
-                    <td>
-                        <div class="qty-ctrl">
-                            <button class="circle-btn" onclick="adjust(${index},-1)">-</button>
-                            <input type="number" class="qty-input" value="${item.actualQty}" onchange="updateQty(${index}, this.value)">
-                            <button class="circle-btn" onclick="adjust(${index},1)">+</button>
-                            <span class="unit-text">${item.unit}</span>
+                const card = document.createElement('div');
+                card.className = 'ios-card';
+                card.id = `row-${index}`;
+                
+                // 生成卡片 HTML
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div style="flex:1; padding-right:10px;">
+                            <div class="tag-group">
+                                <span class="tag tag-area">${item.area || '未分區'}</span>
+                                <span class="tag tag-cat">${item.category}</span>
+                            </div>
+                            <h3 class="item-name">${item.name}</h3>
+                            <p class="item-sku">SKU: ${item.sku}</p>
                         </div>
-                    </td>
-                    <td style="font-weight:bold;">$${itemTotal.toLocaleString()}</td>
-                    <td><button onclick="remove(${index})" style="color:red; background:none; border:none; cursor:pointer;">✕</button></td>
+                        <button class="delete-btn" onclick="remove(${index})">✕</button>
+                    </div>
+                    <div class="card-footer">
+                        <div>
+                            <span class="price-info">$${item.price} <span class="unit-text">/ ${item.unit}</span></span>
+                            <span class="total-price-text">總計: $${itemTotal.toLocaleString()}</span>
+                        </div>
+                        <div class="stepper">
+                            <button class="stepper-btn" onclick="adjust(${index},-1)">−</button>
+                            <input type="number" class="qty-input" value="${item.actualQty}" onchange="updateQty(${index}, this.value)">
+                            <button class="stepper-btn" onclick="adjust(${index},1)">+</button>
+                        </div>
+                    </div>
                 `;
-                tbody.appendChild(tr);
+                listContainer.appendChild(card);
             }
         });
         document.getElementById('grandTotal').innerText = `$${grandTotal.toLocaleString()}`;
     }
 
     function adjust(index, amt) {
+        vibrate();
         inventory[index].actualQty = Math.max(0, inventory[index].actualQty + amt);
         saveAndRender();
     }
@@ -532,27 +428,239 @@
         if(confirm("確定刪除此品項？")) { inventory.splice(index, 1); saveAndRender(); }
     }
 
-    function exportToExcel() {
-        let csv = "\uFEFF區域,類別,SKU,產品名稱,單位,單價,帳面數量,實盤數量,總價值(實盤),差異\n";
-        inventory.forEach(i => {
-            const total = i.price * i.actualQty;
-            csv += `"${i.area}","${i.category}","${i.sku}","${i.name}","${i.unit}",${i.price},${i.bookQty},${i.actualQty},${total},${i.actualQty - i.bookQty}\n`;
+    function saveAndRender() {
+        // 排序：先按區域，再按總價值
+        inventory.sort((a, b) => {
+            if (a.area !== b.area) return a.area.localeCompare(b.area);
+            return (b.price * b.actualQty) - (a.price * a.actualQty);
         });
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        localStorage.setItem('gift_cloud_v2', JSON.stringify(inventory));
+        renderList();
+    }
+
+    // ==========================================
+    // 相機與 AI 掃描邏輯 (維持原邏輯，綁定新 Modal)
+    // ==========================================
+    function toggleScanner() {
+        if (isSkuScanning) toggleSkuScanner(); 
+        
+        const readerElement = document.getElementById('reader');
+        if (!isScanning) {
+            html5QrCode = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 300, height: 150 } };
+
+            html5QrCode.start({ facingMode: "environment" }, config, 
+                (decodedText) => {
+                    if (scanCooldown) return;
+
+                    const idx = inventory.findIndex(i => i.sku === decodedText.trim());
+                    if (idx !== -1) {
+                        vibrate();
+                        inventory[idx].actualQty++;
+                        saveAndRender();
+                        
+                        // 關閉 Modal 並滑動到該卡片
+                        closeModal('scannerModal');
+                        html5QrCode.stop().then(() => { isScanning = false; html5QrCode = null; });
+                        
+                        setTimeout(() => {
+                            const row = document.getElementById(`row-${idx}`);
+                            if(row) { 
+                                row.scrollIntoView({behavior:'smooth', block:'center'}); 
+                                row.classList.add('highlight-card'); 
+                                setTimeout(()=>row.classList.remove('highlight-card'), 1500); 
+                            }
+                        }, 300); // 給予動畫時間
+
+                    } else {
+                        scanCooldown = true; 
+                        alert("找不到條碼: " + decodedText + "\n請使用「手動建檔」。");
+                        setTimeout(() => { scanCooldown = false; }, 2500);
+                    }
+                },
+                (errorMessage) => {}
+            ).then(() => { isScanning = true; }).catch((err) => { alert("無法開啟相機！"); });
+        } else {
+            html5QrCode.stop().then(() => { isScanning = false; html5QrCode = null; });
+        }
+    }
+
+    async function toggleAICamera() {
+        const video = document.getElementById('aiVideo');
+        if (aiStream) {
+            aiStream.getTracks().forEach(track => track.stop());
+            aiStream = null;
+        } else {
+            try {
+                aiStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = aiStream;
+            } catch (err) { alert("無法開啟相機！"); }
+        }
+    }
+
+    async function captureAndAnalyze(mode) {
+        if(mode === 'count' && inventory.length === 0) { alert("無庫存資料。請先下載或新增！"); return; }
+        vibrate();
+
+        const video = document.getElementById('aiVideo');
+        const canvas = document.getElementById('aiCanvas');
+        const loading = document.getElementById('aiLoading');
+        
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        const base64Image = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]; 
+
+        let promptText = "";
+        if (mode === 'count') {
+            const inventoryContext = inventory.map(i => `SKU: ${i.sku} | 名稱: ${i.name}`).join("\n");
+            promptText = `你是一個專業香港盤點助手。從下方清單找出照片中最符合的產品。\n\n【庫存清單】\n${inventoryContext}\n\n以嚴格 JSON 回覆：\n{"sku": "最匹配SKU或 NEW", "name": "產品名稱", "confidence": "數字0-100", "reason": "簡單說明"}`;
+        } else {
+            promptText = `你是一個香港建檔助手。觀察照片自動填表。以嚴格 JSON 回覆：\n{"name": "詳細名稱", "category": "最接近類別", "unit": "件/箱/樽/套", "isCustomCategory": true/false}\n類別限選：HAMPER類(cheap餅), HAMPER類(朱古力,餅乾), BB野, 籃, ESG, 酒, 果汁, 永生花。都不像則 isCustomCategory 為 true 並自訂 category。`;
+        }
+
+        loading.style.display = "block";
+
+        try {
+            const payload = { action: "gemini", prompt: promptText, image: base64Image };
+            const response = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
+            const result = await response.json();
+            
+            if (result.status === "success" && !result.candidates) { throw new Error("GAS 後台版本未更新！"); }
+            if (result.error) { throw new Error(result.error.message); }
+
+            const aiText = result.candidates[0].content.parts[0].text;
+            const cleanJsonText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
+            const aiData = JSON.parse(cleanJsonText);
+            
+            loading.style.display = "none";
+
+            if (mode === 'count') {
+                if (aiData.sku === "NEW" || aiData.confidence < 50) {
+                    alert(`🤖 相似度太低，AI 推測這可能是：\n${aiData.name}\n請改用「智能建檔」。`);
+                } else {
+                    if(confirm(`✨ 辨識成功！\n\n🎯 ${aiData.name}\n📈 信心：${aiData.confidence}%\n💡 原因：${aiData.reason}\n\n是否數量 +1 ？`)) {
+                        const idx = inventory.findIndex(i => i.sku === aiData.sku);
+                        if(idx !== -1) {
+                            inventory[idx].actualQty++;
+                            saveAndRender();
+                            closeModal('aiModal');
+                            toggleAICamera(); // 關相機
+                            setTimeout(() => {
+                                const row = document.getElementById(`row-${idx}`);
+                                if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('highlight-card'); setTimeout(()=>row.classList.remove('highlight-card'), 1500); }
+                            }, 300);
+                        }
+                    }
+                }
+            } else if (mode === 'add') {
+                document.getElementById('newName').value = aiData.name;
+                const catSelect = document.getElementById('catSelect');
+                const customCatInput = document.getElementById('customCat');
+                if (aiData.isCustomCategory) {
+                    catSelect.value = "custom"; customCatInput.style.display = "block"; customCatInput.value = aiData.category;
+                } else {
+                    catSelect.value = aiData.category; customCatInput.style.display = "none";
+                }
+                const unitSelect = document.getElementById('unitSelect');
+                let unitFound = false;
+                for(let i=0; i<unitSelect.options.length; i++) {
+                    if(unitSelect.options[i].value === aiData.unit) { unitSelect.selectedIndex = i; unitFound = true; break; }
+                }
+                if(!unitFound) unitSelect.value = "其他";
+
+                closeModal('aiModal');
+                toggleAICamera();
+                openModal('addModal');
+                alert(`✅ AI 已填寫名稱與類別：\n${aiData.name}\n請補齊單價後加入清單。`);
+            }
+
+        } catch (error) {
+            loading.style.display = "none";
+            alert("AI 錯誤：" + error.message);
+        }
+    }
+
+    // --- 新增禮品邏輯 ---
+    function checkCustomCat() {
+        const select = document.getElementById('catSelect');
+        document.getElementById('customCat').style.display = (select.value === 'custom') ? 'block' : 'none';
+    }
+
+    function addItem() {
+        const name = document.getElementById('newName').value;
+        if (!name) return alert("請輸入產品名稱");
+
+        const catSelect = document.getElementById('catSelect');
+        const finalCat = (catSelect.value === 'custom') ? document.getElementById('customCat').value : catSelect.value;
+
+        inventory.push({
+            area: document.getElementById('newArea').value || "未指定",
+            category: finalCat || "未分類",
+            sku: document.getElementById('newSKU').value || "N/A",
+            name: name,
+            unit: document.getElementById('unitSelect').value,
+            price: parseFloat(document.getElementById('newPrice').value) || 0,
+            bookQty: parseInt(document.getElementById('newBook').value) || 0,
+            actualQty: parseInt(document.getElementById('newBook').value) || 0 // 預設實盤等於初始輸入
+        });
+
+        saveAndRender();
+        closeModal('addModal');
+        // 清空表單
+        document.getElementById('newName').value = ''; document.getElementById('newPrice').value = ''; document.getElementById('newSKU').value = ''; document.getElementById('newBook').value = '';
+    }
+
+    function toggleSkuScanner() {
+        const skuReaderElement = document.getElementById('skuReader');
+        if (!isSkuScanning) {
+            skuScanner = new Html5Qrcode("skuReader");
+            skuReaderElement.style.display = "block";
+            skuScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 100 } }, 
+                (decodedText) => {
+                    vibrate();
+                    document.getElementById('newSKU').value = decodedText.trim();
+                    skuScanner.stop().then(() => { isSkuScanning = false; skuScanner = null; skuReaderElement.style.display = "none"; });
+                }, (errorMessage) => {}
+            ).then(() => { isSkuScanning = true; }).catch((err) => { alert("相機錯誤！"); });
+        } else {
+            skuScanner.stop().then(() => { isSkuScanning = false; skuScanner = null; skuReaderElement.style.display = "none"; });
+        }
+    }
+
+    // --- 雲端同步 ---
+    async function downloadFromCloud() {
+        document.getElementById('syncStatus').innerText = "下載中...";
+        try {
+            const response = await fetch(GAS_URL);
+            const data = await response.json();
+            if (data && data.length > 0) {
+                inventory = data; saveAndRender();
+                document.getElementById('syncStatus').innerText = "✅ 下載成功 " + new Date().toLocaleTimeString().slice(0,5);
+            } else { document.getElementById('syncStatus').innerText = "雲端無資料"; }
+        } catch (error) { document.getElementById('syncStatus').innerText = "❌ 下載失敗"; }
+    }
+
+    async function uploadToCloud() {
+        document.getElementById('syncStatus').innerText = "上傳中...";
+        try {
+            await fetch(GAS_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(inventory) });
+            document.getElementById('syncStatus').innerText = "✅ 已上傳 " + new Date().toLocaleTimeString().slice(0,5);
+        } catch (error) { document.getElementById('syncStatus').innerText = "❌ 上傳失敗"; }
+    }
+
+    function exportToExcel() {
+        let csv = "\uFEFF區域,類別,SKU,產品名稱,單位,單價,實盤數量,總價值\n";
+        inventory.forEach(i => { csv += `"${i.area}","${i.category}","${i.sku}","${i.name}","${i.unit}",${i.price},${i.actualQty},${i.price * i.actualQty}\n`; });
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `禮品資產報告_${new Date().toISOString().slice(0,10)}.csv`;
+        link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+        link.download = `盤點報表_${new Date().toISOString().slice(0,10)}.csv`;
         link.click();
     }
 
-    function confirmClear() { 
-        if(confirm("警告：這將清空你設備上的數據，確定嗎？")) { 
-            inventory=[]; 
-            saveAndRender(); 
-        } 
-    }
+    function confirmClear() { if(confirm("確定清空手機上的所有資料？")) { inventory=[]; saveAndRender(); } }
 
-    renderTable();
+    // 初始化
+    renderList();
 </script>
 </body>
 </html>
