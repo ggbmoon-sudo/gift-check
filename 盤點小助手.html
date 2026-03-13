@@ -46,8 +46,9 @@
         .highlight { background-color: #fff9c4 !important; transition: 1s; }
         .unit-text { color: #888; font-size: 12px; margin-left: 2px; }
 
-        /* 讓相機畫面好看一點 */
+        /* 相機畫面 */
         #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #1a73e8; margin-bottom: 10px; display: none; }
+        #skuReader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #34a853; margin-bottom: 10px; display: none; }
     </style>
 </head>
 <body>
@@ -68,12 +69,12 @@
 
     <div class="section">
         <div id="reader"></div>
-        <button class="btn-blue" style="width:100%" onclick="toggleScanner()">📷 開啟/關閉 條碼掃描</button>
+        <button class="btn-blue" style="width:100%" onclick="toggleScanner()">📷 開啟/關閉 盤點掃描 (找貨/加數量)</button>
         <input type="text" id="search" placeholder="🔍 搜尋類別、區域、名稱、SKU 或單位..." onkeyup="renderTable()" style="width:100%; margin-top:10px; box-sizing:border-box;">
     </div>
 
     <div class="section">
-        <span class="section-title">➕ 新增禮品</span>
+        <span class="section-title">➕ 新增禮品 (無資料時在此建立)</span>
         <div class="input-row">
             <select id="catSelect" onchange="checkCustomCat()">
                 <option value="HAMPER類(cheap餅)">1. HAMPER類(cheap餅)</option>
@@ -89,8 +90,15 @@
             <input type="text" id="customCat" placeholder="請輸入類別名稱" style="display:none; border-color: var(--primary);">
             <input type="text" id="newArea" placeholder="區域 (如: A-01)">
         </div>
+
+        <div id="skuReader"></div>
+
         <div class="input-row">
-            <input type="text" id="newSKU" placeholder="SKU 編號">
+            <div style="display:flex; flex:1; gap:5px; min-width: 140px;">
+                <input type="text" id="newSKU" placeholder="SKU 編號" style="flex:1; min-width: 60px;">
+                <button type="button" class="btn-green" style="margin-top:0; width:auto; padding:0 15px;" onclick="toggleSkuScanner()" title="開啟相機掃描條碼">📷</button>
+            </div>
+            
             <input type="text" id="newName" placeholder="產品名稱 (必填)">
             <select id="unitSelect">
                 <option value="件" selected>單位: 件</option>
@@ -129,12 +137,17 @@
 </div>
 
 <script>
-    // ⚠️⚠️⚠️ 必須修改這裡！貼上你從 Google 複製出來的網址 ⚠️⚠️⚠️
+    // 你的專屬 Google 網址
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
 
     let inventory = JSON.parse(localStorage.getItem('gift_cloud_v2')) || [];
-    let html5QrCode;
+    
+    // 定義兩個掃描器
+    let html5QrCode; // 盤點用
     let isScanning = false;
+    
+    let skuScanner; // 新增SKU用
+    let isSkuScanning = false;
 
     // --- 雲端同步功能 ---
     async function downloadFromCloud() {
@@ -161,7 +174,6 @@
         document.getElementById('syncStatus').innerText = "狀態: 正在上傳資料...";
         document.getElementById('syncStatus').style.color = "blue";
         try {
-            // 加入 mode: 'no-cors' 繞過瀏覽器阻擋
             await fetch(GAS_URL, {
                 method: "POST",
                 mode: "no-cors", 
@@ -170,8 +182,6 @@
                 },
                 body: JSON.stringify(inventory)
             });
-            
-            // 使用 no-cors 時無法讀取 Google 的回傳確認，但只要沒報錯就代表發送成功
             document.getElementById('syncStatus').innerText = "狀態: 上傳雲端成功 ☁️✅ (" + new Date().toLocaleTimeString() + ")";
             document.getElementById('syncStatus').style.color = "green";
         } catch (error) {
@@ -180,22 +190,19 @@
         }
     }
 
-    // --- 掃描功能修復版 ---
+    // --- 主掃描功能 (盤點加數量) ---
     function toggleScanner() {
+        // 防止兩個相機同時開啟衝突
+        if (isSkuScanning) toggleSkuScanner(); 
+
         const readerElement = document.getElementById('reader');
         if (!isScanning) {
             html5QrCode = new Html5Qrcode("reader");
             readerElement.style.display = "block";
-            
-            // 針對商品條碼(1D Barcode)進行優化：將掃描框改為長方形
-            const config = { 
-                fps: 10, 
-                qrbox: { width: 300, height: 120 } // 寬扁型掃描框
-            };
+            const config = { fps: 10, qrbox: { width: 300, height: 120 } };
 
             html5QrCode.start({ facingMode: "environment" }, config, 
                 (decodedText) => {
-                    // 掃描成功
                     const idx = inventory.findIndex(i => i.sku === decodedText.trim());
                     if (idx !== -1) {
                         inventory[idx].actualQty++;
@@ -207,23 +214,53 @@
                             setTimeout(()=>row.classList.remove('highlight'), 2000); 
                         }
                     } else {
-                        alert("找不到此條碼/SKU: " + decodedText + "\n請先手動新增。");
+                        alert("清單中找不到條碼: " + decodedText + "\n請在下方「新增禮品」建立。");
                     }
                 },
-                (errorMessage) => {
-                    // 掃描中但未辨識成功（不用理會，這是背景運作）
-                }
-            ).then(() => {
-                isScanning = true;
-            }).catch((err) => {
-                alert("無法開啟相機，請確保已給予瀏覽器相機權限！");
-                readerElement.style.display = "none";
-            });
+                (errorMessage) => {}
+            ).then(() => { isScanning = true; }).catch((err) => { alert("無法開啟相機！"); readerElement.style.display = "none"; });
         } else {
             html5QrCode.stop().then(() => {
                 isScanning = false;
                 html5QrCode = null;
                 readerElement.style.display = "none";
+            });
+        }
+    }
+
+    // --- 新增: 專屬 SKU 掃描功能 (填入格子用) ---
+    function toggleSkuScanner() {
+        // 防止兩個相機同時開啟衝突
+        if (isScanning) toggleScanner();
+
+        const skuReaderElement = document.getElementById('skuReader');
+        if (!isSkuScanning) {
+            skuScanner = new Html5Qrcode("skuReader");
+            skuReaderElement.style.display = "block";
+            const config = { fps: 10, qrbox: { width: 300, height: 120 } };
+
+            skuScanner.start({ facingMode: "environment" }, config, 
+                (decodedText) => {
+                    // 1. 成功掃描後填入輸入框
+                    document.getElementById('newSKU').value = decodedText.trim();
+                    
+                    // 2. 自動關閉相機
+                    skuScanner.stop().then(() => {
+                        isSkuScanning = false;
+                        skuScanner = null;
+                        skuReaderElement.style.display = "none";
+                    });
+
+                    // (可選) 播放提示音
+                    try { new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play(); } catch(e){}
+                },
+                (errorMessage) => {}
+            ).then(() => { isSkuScanning = true; }).catch((err) => { alert("無法開啟相機！"); skuReaderElement.style.display = "none"; });
+        } else {
+            skuScanner.stop().then(() => {
+                isSkuScanning = false;
+                skuScanner = null;
+                skuReaderElement.style.display = "none";
             });
         }
     }
@@ -344,5 +381,3 @@
 </script>
 </body>
 </html>
-
-
