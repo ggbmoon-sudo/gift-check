@@ -656,29 +656,25 @@
         const timestamp = now.toLocaleString('zh-HK');
         let csv = `\uFEFF"🏢 禮品資產盤點總表","匯出時間：${timestamp}"\n\n`;
 
-        // 2. 完美的黃金欄位表頭
-        csv += "區域,分類,SKU,產品名稱,單位,單價,帳面數量,實盤數量,✅數量差異,💰實盤總值,⚠️差異金額\n";
+        // 2. 乾淨純粹的表頭 (移除帳面與差異欄位)
+        csv += "區域,分類,SKU,產品名稱,單位,單價,實盤數量,💰實盤總值\n";
 
         let grandTotalValue = 0;
-        let grandTotalVariance = 0;
 
-        // 3. 填入資料並自動計算差異
+        // 3. 填入資料並計算實盤總值
         inventory.forEach(i => {
             const actualValue = i.price * i.actualQty;
-            const varianceQty = i.actualQty - i.bookQty;
-            const varianceValue = varianceQty * i.price;
-
             grandTotalValue += actualValue;
-            grandTotalVariance += varianceValue;
 
-            // 防止產品名稱裡面有逗號導致 CSV 跑位
+            // 防止產品名稱裡面有雙引號或逗號導致 CSV 跑位
             const safeName = i.name.replace(/"/g, '""');
 
-            csv += `"${i.area}","${i.category}","${i.sku}","${safeName}","${i.unit}",${i.price},${i.bookQty},${i.actualQty},${varianceQty},${actualValue},${varianceValue}\n`;
+            // 輸出 8 個欄位的資料
+            csv += `"${i.area}","${i.category}","${i.sku}","${safeName}","${i.unit}",${i.price},${i.actualQty},${actualValue}\n`;
         });
 
-        // 4. 底部加上強大的「總計列」
-        csv += `\n"📊 總計","","","","",,"","","",${grandTotalValue},${grandTotalVariance}\n`;
+        // 4. 底部加上強大的「總計列」 (對齊第 8 欄的實盤總值)
+        csv += `\n"📊 總計","","","","","","",${grandTotalValue}\n`;
 
         // 5. 匯出檔案
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -687,11 +683,11 @@
         link.download = `禮品盤點報告_${now.toISOString().slice(0,10)}.csv`;
         link.click();
     }
-
     function confirmClear() { if(confirm("確定清空手機上的所有資料？")) { inventory=[]; localStorage.removeItem('cloud_snapshot'); saveAndRender(); } }
 
     renderList();
 </script>
 </body>
 </html>
+
 
