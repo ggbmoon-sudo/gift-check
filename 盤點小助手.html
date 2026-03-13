@@ -228,7 +228,7 @@
 
         loading.style.display = "block";
 
-       try {
+        try {
             // 發送請求給 Google Apps Script
             const payload = {
                 action: "gemini",
@@ -275,13 +275,12 @@
 
             // 解析 Gemini 回傳的 JSON 文字
             const aiText = result.candidates[0].content.parts[0].text;
-            // 確保回傳的內容是乾淨的 JSON 格式 (去除 markdown 標記)
             const cleanJsonText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
             const aiData = JSON.parse(cleanJsonText);
             
             loading.style.display = "none";
 
-            // --- 下面是處理 AI 結果的邏輯 (維持不變) ---
+            // --- 處理 AI 結果的邏輯 ---
             if (mode === 'count') {
                 if (aiData.sku === "NEW" || aiData.confidence < 50) {
                     alert(`🤖 AI 推測這可能是：${aiData.name}\n但相似度太低，請使用「📝 AI 建檔」來新增此物品。`);
@@ -329,6 +328,8 @@
             loading.style.display = "none";
             alert("網頁解析發生錯誤，請截圖此訊息回報：\n" + error.message);
         }
+    }
+
     // --- 其餘原有功能保持不變 ---
     async function downloadFromCloud() {
         document.getElementById('syncStatus').innerText = "狀態: 正在下載資料...";
@@ -557,6 +558,3 @@
 </script>
 </body>
 </html>
-
-
-
