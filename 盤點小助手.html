@@ -228,8 +228,8 @@
 
         loading.style.display = "block";
 
-        try {
-            // 3. 🌟 關鍵修改：將請求發送給你的 Google Apps Script，由它代為轉發 (繞過香港限制)
+       try {
+            // 發送請求給 Google Apps Script
             const payload = {
                 action: "gemini",
                 apiKey: GEMINI_API_KEY,
@@ -245,19 +245,46 @@
 
             const result = await response.json();
             
-            // 檢查是否返回了 API 的錯誤訊息
+            // 🛡️ 防呆機制 1：檢查是不是因為沒更新到新版 GAS 後台
+            if (result.status === "success" && !result.candidates) {
+                alert("⚠️ 系統提示：你的 Google Apps Script 後台還在運行舊版本！\n請回到 Google 試算表，點擊「部署」>「管理部署」> 編輯並務必選擇「新版本(New version)」！");
+                loading.style.display = "none";
+                return;
+            }
+
+            // 🛡️ 防呆機制 2：檢查後台代碼是否有錯誤
+            if (result.status === "error") {
+                alert("❌ 雲端後台錯誤：\n" + result.message);
+                loading.style.display = "none";
+                return;
+            }
+
+            // 🛡️ 防呆機制 3：檢查 Gemini API (例如 API Key 錯誤)
             if (result.error) {
-                throw new Error(result.error.message);
+                alert("🤖 AI 拒絕回應：\n" + result.error.message);
+                loading.style.display = "none";
+                return;
+            }
+
+            // 🛡️ 防呆機制 4：檢查是否被安全機制阻擋
+            if (!result.candidates || result.candidates.length === 0) {
+                alert("🛑 AI 無法辨識此圖片，可能是照片模糊或觸發了安全過濾機制。");
+                loading.style.display = "none";
+                return;
             }
 
             // 解析 Gemini 回傳的 JSON 文字
-            const aiData = JSON.parse(result.candidates[0].content.parts[0].text);
+            const aiText = result.candidates[0].content.parts[0].text;
+            // 確保回傳的內容是乾淨的 JSON 格式 (去除 markdown 標記)
+            const cleanJsonText = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
+            const aiData = JSON.parse(cleanJsonText);
+            
             loading.style.display = "none";
 
-            // 4. 處理 AI 結果
+            // --- 下面是處理 AI 結果的邏輯 (維持不變) ---
             if (mode === 'count') {
                 if (aiData.sku === "NEW" || aiData.confidence < 50) {
-                    alert(`🤖 AI 分析結果：\n\n找不到非常吻合的物品。\nAI 推測這可能是：${aiData.name}\n\n請使用「📝 AI 建檔」來新增此物品。`);
+                    alert(`🤖 AI 推測這可能是：${aiData.name}\n但相似度太低，請使用「📝 AI 建檔」來新增此物品。`);
                 } else {
                     if(confirm(`✨ AI 成功辨識！✨\n\n🎯 產品：${aiData.name}\n📈 信心指數：${aiData.confidence}%\n💡 判斷原因：${aiData.reason}\n\n請問是否要將此產品數量 +1 ？`)) {
                         const idx = inventory.findIndex(i => i.sku === aiData.sku);
@@ -300,10 +327,8 @@
 
         } catch (error) {
             loading.style.display = "none";
-            alert("AI 辨識發生錯誤，請重試。\n詳細錯誤：" + error);
+            alert("網頁解析發生錯誤，請截圖此訊息回報：\n" + error.message);
         }
-    }
-
     // --- 其餘原有功能保持不變 ---
     async function downloadFromCloud() {
         document.getElementById('syncStatus').innerText = "狀態: 正在下載資料...";
@@ -532,5 +557,6 @@
 </script>
 </body>
 </html>
+
 
 
