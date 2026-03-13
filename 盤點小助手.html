@@ -62,7 +62,7 @@
 <body>
 
 <div class="container">
-    <h2>✨ 禮品庫存系統 GBBMOON_v1.1</h2>
+    <h2>✨ 禮品庫存系統 GBBMOON_v1.2</h2>
 
     <div class="sync-bar">
         <button class="sync-btn btn-download" onclick="downloadFromCloud()">⬇️ 1. 從雲端下載最新資料</button>
@@ -165,7 +165,6 @@
 <script>
     // --- 系統設定 ---
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
-    const GEMINI_API_KEY = "AIzaSyAKLAIgoH3Ou9wtvB_Aog0oAf-EXLk2YG8"; 
     
     let inventory = JSON.parse(localStorage.getItem('gift_cloud_v2')) || [];
     
@@ -229,10 +228,9 @@
         loading.style.display = "block";
 
         try {
-            // 發送請求給 Google Apps Script
+            // 發送請求給 Google Apps Script (金鑰已安全隱藏在後台)
             const payload = {
                 action: "gemini",
-                apiKey: GEMINI_API_KEY,
                 prompt: promptText,
                 image: base64Image
             };
@@ -558,4 +556,3 @@
 </script>
 </body>
 </html>
-
