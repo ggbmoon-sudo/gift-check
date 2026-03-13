@@ -680,7 +680,7 @@
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `禮品盤點報告_${now.toISOString().slice(0,10)}.csv`;
+        link.download = `GGB Stocktake 31 Mar_${now.toISOString().slice(0,10)}.csv`;
         link.click();
     }
     function confirmClear() { if(confirm("確定清空手機上的所有資料？")) { inventory=[]; localStorage.removeItem('cloud_snapshot'); saveAndRender(); } }
@@ -689,6 +689,7 @@
 </script>
 </body>
 </html>
+
 
 
 
