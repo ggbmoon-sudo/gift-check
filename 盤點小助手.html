@@ -26,7 +26,7 @@
         button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .btn-blue { background: var(--primary); color: white; }
         .btn-green { background: var(--success); color: white; width: 100%; font-size: 1.1em; margin-top: 10px; }
-        .btn-ai { background: var(--ai); color: white; width: 100%; margin-top: 10px; font-size: 1.1em; border: 2px solid #ab47bc; box-shadow: 0 0 10px rgba(142,36,170,0.3); }
+        .btn-ai { background: var(--ai); color: white; width: 100%; font-size: 1.1em; border: 2px solid #ab47bc; box-shadow: 0 0 10px rgba(142,36,170,0.3); }
         .btn-ai:active { transform: scale(0.98); }
         
         .summary-bar { background: #e8f0fe; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border: 1px solid #1a73e8; }
@@ -52,10 +52,11 @@
         #skuReader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #34a853; margin-bottom: 10px; display: none; }
         
         /* AI 視覺專區 */
-        #aiCameraBox { display: none; margin-top: 10px; border: 2px dashed var(--ai); padding: 10px; border-radius: 8px; background: #fdfafb; text-align: center; }
-        #aiVideo { width: 100%; max-width: 400px; border-radius: 8px; background: #000; }
+        #aiCameraBox { display: none; margin-top: 10px; border: 2px dashed var(--ai); padding: 15px; border-radius: 8px; background: #fdfafb; text-align: center; }
+        #aiVideo { width: 100%; max-width: 400px; border-radius: 8px; background: #000; margin-bottom: 10px;}
         #aiCanvas { display: none; }
-        #aiLoading { display: none; color: var(--ai); font-weight: bold; margin-top: 10px; }
+        #aiLoading { display: none; color: var(--ai); font-weight: bold; margin-top: 15px; }
+        .ai-btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -78,22 +79,26 @@
         <span class="section-title">🔍 盤點工具 (找貨 / 加數量)</span>
         
         <div id="reader"></div>
-        <button class="btn-blue" style="width:100%" onclick="toggleScanner()">📷 開啟 條碼掃描 (有條碼專用)</button>
+        <button class="btn-blue" style="width:100%; margin-bottom:10px;" onclick="toggleScanner()">📷 開啟 條碼掃描 (有條碼專用)</button>
         
-        <button class="btn-ai" onclick="toggleAICamera()">✨ 開啟 AI 拍照辨識 (無條碼專用)</button>
+        <button class="btn-ai" onclick="toggleAICamera()">✨ 開啟 AI 相機 (無條碼專用)</button>
         
         <div id="aiCameraBox">
             <video id="aiVideo" autoplay playsinline></video>
             <canvas id="aiCanvas"></canvas>
-            <br>
-            <button class="btn-ai" style="width:auto; padding: 10px 30px;" onclick="captureAndAnalyze()">📸 拍照並讓 AI 分析</button>
+            
+            <div class="ai-btn-group">
+                <button class="btn-ai" style="flex:1; margin-top:0;" onclick="captureAndAnalyze('count')">🔍 AI 盤點 (找舊貨+1)</button>
+                <button class="btn-green" style="flex:1; margin-top:0;" onclick="captureAndAnalyze('add')">📝 AI 建檔 (自動填表單)</button>
+            </div>
+            
             <div id="aiLoading">⏳ AI 正在思考中，請稍候... (約需 3-5 秒)</div>
         </div>
 
         <input type="text" id="search" placeholder="🔍 手動搜尋類別、區域、名稱或 SKU..." onkeyup="renderTable()" style="width:100%; margin-top:15px; box-sizing:border-box;">
     </div>
 
-    <div class="section">
+    <div class="section" id="addSection">
         <span class="section-title">➕ 新增禮品 (無資料時在此建立)</span>
         <div class="input-row">
             <select id="catSelect" onchange="checkCustomCat()">
@@ -124,6 +129,7 @@
                 <option value="件" selected>單位: 件</option>
                 <option value="箱">單位: 箱</option>
                 <option value="樽">單位: 樽</option>
+                <option value="套">單位: 套</option>
                 <option value="其他">單位: 其他</option>
             </select>
         </div>
@@ -157,7 +163,7 @@
 </div>
 
 <script>
-    // --- 系統設定 (你的 API 與後台) ---
+    // --- 系統設定 ---
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
     const GEMINI_API_KEY = "AIzaSyAKLAIgoH3Ou9wtvB_Aog0oAf-EXLk2YG8"; 
     
@@ -178,12 +184,9 @@
         const video = document.getElementById('aiVideo');
         
         if (box.style.display === "block") {
-            // 關閉相機
             box.style.display = "none";
             if (aiStream) aiStream.getTracks().forEach(track => track.stop());
         } else {
-            // 開啟相機
-            // 確保關閉其他掃描器
             if(isScanning) toggleScanner();
             if(isSkuScanning) toggleSkuScanner();
 
@@ -198,8 +201,8 @@
         }
     }
 
-    async function captureAndAnalyze() {
-        if(inventory.length === 0) {
+    async function captureAndAnalyze(mode) {
+        if(mode === 'count' && inventory.length === 0) {
             alert("目前沒有庫存資料供 AI 比對。請先從雲端下載或手動新增！");
             return;
         }
@@ -212,29 +215,27 @@
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        // 壓縮圖片以加快傳輸速度
         const base64Image = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]; 
 
-        // 2. 準備清單給 Gemini 參考 (只傳送 SKU和名稱 節省資源)
-        const inventoryContext = inventory.map(i => `SKU: ${i.sku} | 名稱: ${i.name}`).join("\n");
-        
-        const promptText = `你是一個專業的香港禮品公司盤點助手。請仔細觀察這張照片中的物品，並從下方我們公司的【庫存清單】中，找出最符合的產品。\n\n【庫存清單】\n${inventoryContext}\n\n請以嚴格的 JSON 格式回覆，不要加其他廢話：\n{"sku": "最匹配的SKU (若無匹配請填寫 NEW)", "name": "對應的產品名稱", "confidence": "0到100的信心分數數字", "reason": "簡單說明為什麼你覺得是這個產品(繁體中文)"}`;
+        // 2. 根據不同模式設定 AI Prompt
+        let promptText = "";
+        if (mode === 'count') {
+            const inventoryContext = inventory.map(i => `SKU: ${i.sku} | 名稱: ${i.name}`).join("\n");
+            promptText = `你是一個專業的香港禮品公司盤點助手。請仔細觀察這張照片中的物品，並從下方我們公司的【庫存清單】中，找出最符合的產品。\n\n【庫存清單】\n${inventoryContext}\n\n請以嚴格的 JSON 格式回覆，不要加其他廢話：\n{"sku": "最匹配的SKU (若無匹配請填寫 NEW)", "name": "對應的產品名稱", "confidence": "0到100的信心分數數字", "reason": "簡單說明原因(繁體中文)"}`;
+        } else if (mode === 'add') {
+            promptText = `你是一個專業的香港禮品公司建檔助手。請觀察這件新禮品，幫我自動填寫建檔表單。請回傳嚴格的 JSON 格式：\n{"name": "產品詳細名稱(包含品牌或特徵)", "category": "最接近的類別", "unit": "單位(件/箱/樽/套)", "isCustomCategory": true或false}\n\n類別請從以下嚴格選擇：HAMPER類(cheap餅), HAMPER類(朱古力,餅乾), BB野, 籃, ESG, 酒, 果汁, 永生花。如果都不像，請將 isCustomCategory 設為 true，並在 category 填寫你自訂的類別名稱。`;
+        }
 
         loading.style.display = "block";
 
         try {
-            // 3. 呼叫 Gemini 1.5 Flash API
+            // 3. 呼叫 Gemini API
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            { text: promptText },
-                            { inlineData: { mimeType: "image/jpeg", data: base64Image } }
-                        ]
-                    }],
-                    generationConfig: { responseMimeType: "application/json" } // 強制回傳 JSON
+                    contents: [{ parts: [ { text: promptText }, { inlineData: { mimeType: "image/jpeg", data: base64Image } } ] }],
+                    generationConfig: { responseMimeType: "application/json" }
                 })
             });
 
@@ -243,27 +244,57 @@
             loading.style.display = "none";
 
             // 4. 處理 AI 結果
-            if (aiData.sku === "NEW" || aiData.confidence < 50) {
-                alert(`🤖 AI 分析結果：\n\nAI 在庫存清單中找不到非常吻合的物品。\nAI 推測這可能是：${aiData.name}\n原因：${aiData.reason}\n\n請嘗試使用「手動搜尋」或在下方「新增禮品」中建立。`);
-            } else {
-                const confirmMsg = `✨ AI 成功辨識！✨\n\n🎯 產品：${aiData.name} (SKU: ${aiData.sku})\n📈 信心指數：${aiData.confidence}%\n💡 判斷原因：${aiData.reason}\n\n請問是否要將此產品的 實盤數量 +1 ？`;
-                
-                if(confirm(confirmMsg)) {
-                    const idx = inventory.findIndex(i => i.sku === aiData.sku);
-                    if(idx !== -1) {
-                        inventory[idx].actualQty++;
-                        saveAndRender();
-                        // 滾動並高亮
-                        const row = document.getElementById(`row-${idx}`);
-                        if(row) { 
-                            row.scrollIntoView({behavior:'smooth', block:'center'}); 
-                            row.classList.add('highlight'); 
-                            setTimeout(()=>row.classList.remove('highlight'), 2000); 
+            if (mode === 'count') {
+                if (aiData.sku === "NEW" || aiData.confidence < 50) {
+                    alert(`🤖 AI 分析結果：\n\n找不到非常吻合的物品。\nAI 推測這可能是：${aiData.name}\n\n請使用「📝 AI 建檔」來新增此物品。`);
+                } else {
+                    if(confirm(`✨ AI 成功辨識！✨\n\n🎯 產品：${aiData.name}\n📈 信心指數：${aiData.confidence}%\n💡 判斷原因：${aiData.reason}\n\n請問是否要將此產品數量 +1 ？`)) {
+                        const idx = inventory.findIndex(i => i.sku === aiData.sku);
+                        if(idx !== -1) {
+                            inventory[idx].actualQty++;
+                            saveAndRender();
+                            const row = document.getElementById(`row-${idx}`);
+                            if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('highlight'); setTimeout(()=>row.classList.remove('highlight'), 2000); }
                         }
-                    } else {
-                        alert("發生錯誤：AI 找到了 SKU，但在本地庫存中無法定位。");
                     }
                 }
+            } else if (mode === 'add') {
+                // 自動填寫新增表單
+                document.getElementById('newName').value = aiData.name;
+                
+                // 處理類別
+                const catSelect = document.getElementById('catSelect');
+                const customCatInput = document.getElementById('customCat');
+                
+                if (aiData.isCustomCategory) {
+                    catSelect.value = "custom";
+                    customCatInput.style.display = "block";
+                    customCatInput.value = aiData.category;
+                } else {
+                    catSelect.value = aiData.category;
+                    customCatInput.style.display = "none";
+                }
+
+                // 處理單位 (確保下拉選單有該選項)
+                const unitSelect = document.getElementById('unitSelect');
+                let unitFound = false;
+                for(let i=0; i<unitSelect.options.length; i++) {
+                    if(unitSelect.options[i].value === aiData.unit) {
+                        unitSelect.selectedIndex = i;
+                        unitFound = true; break;
+                    }
+                }
+                if(!unitFound) unitSelect.value = "其他";
+
+                // 關閉相機並滾動到新增區塊
+                toggleAICamera();
+                document.getElementById('addSection').scrollIntoView({behavior: 'smooth'});
+                
+                // 視覺提示
+                document.getElementById('addSection').style.boxShadow = "0 0 15px rgba(142,36,170,0.5)";
+                setTimeout(() => { document.getElementById('addSection').style.boxShadow = "none"; }, 2000);
+                
+                alert(`✅ AI 已自動填寫產品名稱與類別！\n\nAI 判定：${aiData.name}\n請確認內容，補上「單價」與「SKU(若有)」後即可加入清單。`);
             }
 
         } catch (error) {
@@ -272,8 +303,7 @@
         }
     }
 
-
-    // --- 雲端同步功能 ---
+    // --- 其餘原有功能保持不變 ---
     async function downloadFromCloud() {
         document.getElementById('syncStatus').innerText = "狀態: 正在下載資料...";
         document.getElementById('syncStatus').style.color = "blue";
@@ -312,7 +342,6 @@
         }
     }
 
-    // --- 傳統條碼掃描功能 ---
     function toggleScanner() {
         if (isSkuScanning) toggleSkuScanner(); 
         if (document.getElementById('aiCameraBox').style.display === "block") toggleAICamera();
@@ -337,7 +366,6 @@
                             row.classList.add('highlight'); 
                             setTimeout(()=>row.classList.remove('highlight'), 2000); 
                         }
-                        
                         scanCooldown = true;
                         setTimeout(() => { scanCooldown = false; }, 1000);
                     } else {
@@ -357,7 +385,6 @@
         }
     }
 
-    // --- 新增 SKU 掃描功能 ---
     function toggleSkuScanner() {
         if (isScanning) toggleScanner();
         if (document.getElementById('aiCameraBox').style.display === "block") toggleAICamera();
@@ -389,7 +416,6 @@
         }
     }
 
-    // --- 基本介面邏輯 ---
     function checkCustomCat() {
         const select = document.getElementById('catSelect');
         const customInput = document.getElementById('customCat');
