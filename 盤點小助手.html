@@ -190,7 +190,10 @@
         }
     }
 
-    // --- 主掃描功能 (盤點加數量) ---
+// 新增一個防護開關，防止連續觸發
+    let scanCooldown = false; 
+
+    // --- 主掃描功能 (盤點加數量) 修復版 ---
     function toggleScanner() {
         // 防止兩個相機同時開啟衝突
         if (isSkuScanning) toggleSkuScanner(); 
@@ -203,8 +206,12 @@
 
             html5QrCode.start({ facingMode: "environment" }, config, 
                 (decodedText) => {
+                    // 【關鍵修復】如果系統正在「冷卻中」，就直接忽略這次掃描
+                    if (scanCooldown) return;
+
                     const idx = inventory.findIndex(i => i.sku === decodedText.trim());
                     if (idx !== -1) {
+                        // --- 掃描成功的處理 ---
                         inventory[idx].actualQty++;
                         saveAndRender();
                         const row = document.getElementById(`row-${idx}`);
@@ -213,8 +220,18 @@
                             row.classList.add('highlight'); 
                             setTimeout(()=>row.classList.remove('highlight'), 2000); 
                         }
+                        
+                        // 成功後鎖定 1 秒，防止同一個商品瞬間被加好幾次
+                        scanCooldown = true;
+                        setTimeout(() => { scanCooldown = false; }, 1000);
+
                     } else {
+                        // --- 掃描失敗的處理 ---
+                        scanCooldown = true; // 立刻鎖定掃描器
                         alert("清單中找不到條碼: " + decodedText + "\n請在下方「新增禮品」建立。");
+                        
+                        // 當你按下 OK 關閉警告後，給予 2.5 秒的時間把鏡頭移開，然後才重新開放掃描
+                        setTimeout(() => { scanCooldown = false; }, 2500);
                     }
                 },
                 (errorMessage) => {}
@@ -381,3 +398,4 @@
 </script>
 </body>
 </html>
+
