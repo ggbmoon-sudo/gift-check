@@ -200,7 +200,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">盤點助手 moon 2.0</h1>
+    <h1 class="header-title">盤點助手 moon 2.1</h1>
     <div class="dashboard">
         <div class="total-box">
             <span class="total-label">資產總值</span>
@@ -650,11 +650,42 @@
         }
     }
 
-    function exportToExcel() {
-        let csv = "\uFEFF區域,類別,SKU,產品名稱,單位,單價,實盤數量,總價值\n";
-        inventory.forEach(i => { csv += `"${i.area}","${i.category}","${i.sku}","${i.name}","${i.unit}",${i.price},${i.actualQty},${i.price * i.actualQty}\n`; });
-        const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-        link.download = `盤點報表_${new Date().toISOString().slice(0,10)}.csv`; link.click();
+   function exportToExcel() {
+        // 1. 加入報表標題與精確時間戳記
+        const now = new Date();
+        const timestamp = now.toLocaleString('zh-HK');
+        let csv = `\uFEFF"🏢 禮品資產盤點總表","匯出時間：${timestamp}"\n\n`;
+
+        // 2. 完美的黃金欄位表頭
+        csv += "區域,分類,SKU,產品名稱,單位,單價,帳面數量,實盤數量,✅數量差異,💰實盤總值,⚠️差異金額\n";
+
+        let grandTotalValue = 0;
+        let grandTotalVariance = 0;
+
+        // 3. 填入資料並自動計算差異
+        inventory.forEach(i => {
+            const actualValue = i.price * i.actualQty;
+            const varianceQty = i.actualQty - i.bookQty;
+            const varianceValue = varianceQty * i.price;
+
+            grandTotalValue += actualValue;
+            grandTotalVariance += varianceValue;
+
+            // 防止產品名稱裡面有逗號導致 CSV 跑位
+            const safeName = i.name.replace(/"/g, '""');
+
+            csv += `"${i.area}","${i.category}","${i.sku}","${safeName}","${i.unit}",${i.price},${i.bookQty},${i.actualQty},${varianceQty},${actualValue},${varianceValue}\n`;
+        });
+
+        // 4. 底部加上強大的「總計列」
+        csv += `\n"📊 總計","","","","",,"","","",${grandTotalValue},${grandTotalVariance}\n`;
+
+        // 5. 匯出檔案
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `禮品盤點報告_${now.toISOString().slice(0,10)}.csv`;
+        link.click();
     }
 
     function confirmClear() { if(confirm("確定清空手機上的所有資料？")) { inventory=[]; localStorage.removeItem('cloud_snapshot'); saveAndRender(); } }
@@ -663,3 +694,4 @@
 </script>
 </body>
 </html>
+
