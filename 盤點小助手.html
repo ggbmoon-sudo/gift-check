@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>禮品盤點 Pro v3.6</title>
+    <title>盤點  MOONv3.7</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         /* iOS 原生配色與變數 */
@@ -59,6 +59,11 @@
         .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 500; }
         .tag-area { background: #E5F0FF; color: #007AFF; }
         .tag-cat { background: #E8F5E9; color: #34C759; }
+        
+        /* 🚨 新增：缺價警告標籤樣式 */
+        .tag-warning { background: #FFEBEB; color: var(--ios-red); border: 1px solid #FFD6D6; }
+        .price-missing { color: var(--ios-red); font-weight: 700; font-size: 15px; }
+
         .price-info { font-size: 15px; font-weight: 500; }
         .total-price-text { font-size: 12px; color: var(--ios-gray); display: block; }
         .stepper { display: flex; align-items: center; background: var(--ios-light-gray); border-radius: 8px; overflow: hidden; }
@@ -121,7 +126,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">盤點助手 Pro 3.6</h1>
+    <h1 class="header-title">盤點MOON 3.7</h1>
     <div class="dashboard">
         <div class="total-box"><span class="total-label">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
         <div>
@@ -222,7 +227,7 @@
             <div class="form-group" style="flex: 1;"><label class="form-label">單位</label><select id="unitSelect" class="ios-select"><option value="件" selected>件</option><option value="箱">箱</option><option value="樽">樽</option><option value="套">套</option><option value="其他">其他</option></select></div>
         </div>
         <div class="form-row">
-            <div class="form-group" style="flex: 1;"><label class="form-label">單價 ($)</label><input type="number" id="newPrice" class="ios-input" placeholder="AI估算市價" inputmode="decimal"></div>
+            <div class="form-group" style="flex: 1;"><label class="form-label">單價 ($) 💡非必填</label><input type="number" id="newPrice" class="ios-input" placeholder="可留空日後補" inputmode="decimal"></div>
             <div class="form-group" style="flex: 1;"><label class="form-label">初始實盤數量</label><input type="number" id="newBook" class="ios-input" placeholder="0" inputmode="numeric"></div>
         </div>
         <button class="action-btn btn-primary" onclick="addItem()">加入清單</button>
@@ -246,7 +251,7 @@
             <div class="form-group" style="flex: 1;"><label class="form-label">分類</label><select id="editCatSelect" class="ios-select" onchange="checkCustomCat('editCatSelect', 'editCustomCat')"><option value="HAMPER類(cheap餅)">HAMPER(cheap餅)</option><option value="HAMPER類(朱古力,餅乾)">HAMPER(朱古力)</option><option value="BB野">BB野</option><option value="籃">籃</option><option value="ESG">ESG</option><option value="酒">酒</option><option value="果汁">果汁</option><option value="永生花">永生花</option><option value="custom">自定義...</option></select><input type="text" id="editCustomCat" class="ios-input" placeholder="輸入新分類" style="display:none; margin-top:8px;"></div>
             <div class="form-group" style="flex: 1;"><label class="form-label">單位</label><select id="editUnitSelect" class="ios-select"><option value="件">件</option><option value="箱">箱</option><option value="樽">樽</option><option value="套">套</option><option value="其他">其他</option></select></div>
         </div>
-        <div class="form-group"><label class="form-label">單價 ($)</label><input type="number" id="editPrice" class="ios-input" placeholder="0" inputmode="decimal"></div>
+        <div class="form-group"><label class="form-label">單價 ($) 💡非必填</label><input type="number" id="editPrice" class="ios-input" placeholder="0" inputmode="decimal"></div>
         <button class="action-btn btn-primary" onclick="saveEdit()">儲存修改</button>
     </div>
 </div>
@@ -304,18 +309,36 @@
     function ensureShortCodes() { let changed = false; inventory.forEach(item => { if (!item.shortCode) { item.shortCode = generateShortCode(); changed = true; } }); if (changed) saveAndRender(); }
     ensureShortCodes();
 
+    // 🌟 重新渲染卡片 (加入缺價警示邏輯)
     function renderList() {
         const query = document.getElementById('search').value.toLowerCase(); const listContainer = document.getElementById('inventoryList'); listContainer.innerHTML = ''; let grandTotal = 0;
         inventory.forEach((item, index) => {
             const itemTotal = item.price * item.actualQty; grandTotal += itemTotal;
             if (Object.values(item).some(val => String(val).toLowerCase().includes(query))) {
                 const card = document.createElement('div'); card.className = 'ios-card'; card.id = `row-${index}`;
-                const imgBtnClass = item.image ? 'icon-btn has-image' : 'icon-btn'; const imgColor = item.image ? 'var(--ios-blue)' : 'var(--ios-light-gray)';
+                
+                const imgBtnClass = item.image ? 'icon-btn has-image' : 'icon-btn'; 
+                const imgColor = item.image ? 'var(--ios-blue)' : 'var(--ios-light-gray)';
+                
+                // 🚨 判斷是否有單價
+                const isMissingPrice = !item.price || item.price === 0;
+                const priceDisplayClass = isMissingPrice ? 'price-missing' : 'price-info';
+                const priceText = isMissingPrice ? '$0 (缺價)' : `$${item.price}`;
+                const warningBadge = isMissingPrice ? `<span class="tag tag-warning">⚠️ 需補單價</span>` : '';
+
                 card.innerHTML = `
-                    <div class="item-row-num">#${index + 1}</div><div class="item-short-code"><span class="short-code-badge">${item.shortCode}</span></div>
-                    <div class="item-area-cat"><div class="tag-group"><span class="tag tag-area">${item.area || '未分區'}</span><span class="tag tag-cat">${item.category}</span></div></div>
+                    <div class="item-row-num">#${index + 1}</div>
+                    <div class="item-short-code"><span class="short-code-badge">${item.shortCode}</span></div>
+                    <div class="item-area-cat">
+                        <div class="tag-group">
+                            <span class="tag tag-area">${item.area || '未分區'}</span>
+                            <span class="tag tag-cat">${item.category}</span>
+                            ${warningBadge} </div>
+                    </div>
                     <div class="item-name-sku"><h3 class="item-name">${item.name}</h3><p class="item-sku">SKU: ${item.sku}</p></div>
-                    <div class="item-price-unit"><span class="price-info">$${item.price} <span class="unit-text">/ ${item.unit}</span></span></div>
+                    <div class="item-price-unit">
+                        <span class="${priceDisplayClass}">${priceText} <span class="unit-text" style="color:var(--ios-gray);font-weight:normal;">/ ${item.unit}</span></span>
+                    </div>
                     <div class="item-total"><span class="total-price-text">總計: $${itemTotal.toLocaleString()}</span></div>
                     <div class="stepper-container"><div class="stepper"><button class="stepper-btn" onclick="adjust(${index},-1)">−</button><input type="number" class="qty-input" value="${item.actualQty}" onchange="updateQty(${index}, this.value)"><button class="stepper-btn" onclick="adjust(${index},1)">+</button></div></div>
                     <div class="item-actions"><button class="${imgBtnClass}" style="color:${imgColor};" onclick="viewImage(${index})" title="圖片">🖼️</button><button class="edit-btn" onclick="openEdit(${index})" title="修改">✏️</button><button class="delete-btn" onclick="remove(${index})" title="刪除">✕</button></div>
@@ -328,7 +351,11 @@
 
     function openEdit(index) {
         editingIndex = index; const item = inventory[index];
-        document.getElementById('editSKU').value = item.sku; document.getElementById('editArea').value = item.area; document.getElementById('editName').value = item.name; document.getElementById('editPrice').value = item.price;
+        document.getElementById('editSKU').value = item.sku; document.getElementById('editArea').value = item.area; document.getElementById('editName').value = item.name; 
+        
+        // 編輯時載入價格，如果是 0 就顯示空白，方便輸入
+        document.getElementById('editPrice').value = (item.price === 0) ? '' : item.price;
+        
         if (item.image) { document.getElementById('editImageData').value = item.image; document.getElementById('editPreview').src = item.image; document.getElementById('editPreview').style.display = 'block'; } else { clearImagePreview('editPreview', 'editImageData'); }
         const catSelect = document.getElementById('editCatSelect'); const customCatInput = document.getElementById('editCustomCat');
         let catFound = false; for(let i=0; i<catSelect.options.length; i++) { if(catSelect.options[i].value === item.category) { catSelect.selectedIndex = i; catFound = true; break; } }
@@ -341,7 +368,12 @@
     function saveEdit() {
         if (editingIndex === -1) return; const name = document.getElementById('editName').value; if (!name) return alert("請輸入產品名稱");
         const finalCat = (document.getElementById('editCatSelect').value === 'custom') ? document.getElementById('editCustomCat').value : document.getElementById('editCatSelect').value;
-        inventory[editingIndex].sku = document.getElementById('editSKU').value || "N/A"; inventory[editingIndex].area = document.getElementById('editArea').value || "未指定"; inventory[editingIndex].name = name; inventory[editingIndex].category = finalCat || "未分類"; inventory[editingIndex].unit = document.getElementById('editUnitSelect').value; inventory[editingIndex].price = parseFloat(document.getElementById('editPrice').value) || 0; inventory[editingIndex].image = document.getElementById('editImageData').value;
+        inventory[editingIndex].sku = document.getElementById('editSKU').value || "N/A"; inventory[editingIndex].area = document.getElementById('editArea').value || "未指定"; inventory[editingIndex].name = name; inventory[editingIndex].category = finalCat || "未分類"; inventory[editingIndex].unit = document.getElementById('editUnitSelect').value; 
+        
+        // 確保留白時自動轉換為 0
+        inventory[editingIndex].price = parseFloat(document.getElementById('editPrice').value) || 0; 
+        
+        inventory[editingIndex].image = document.getElementById('editImageData').value;
         saveAndRender(); closeModal('editModal'); vibrate();
     }
 
@@ -354,7 +386,17 @@
     function addItem() {
         const name = document.getElementById('newName').value; if (!name) return alert("請輸入產品名稱");
         const finalCat = (document.getElementById('catSelect').value === 'custom') ? document.getElementById('customCat').value : document.getElementById('catSelect').value;
-        inventory.push({ shortCode: generateShortCode(), area: document.getElementById('newArea').value || "未指定", category: finalCat || "未分類", sku: document.getElementById('newSKU').value || "N/A", name: name, unit: document.getElementById('unitSelect').value, price: parseFloat(document.getElementById('newPrice').value) || 0, bookQty: parseInt(document.getElementById('newBook').value) || 0, actualQty: parseInt(document.getElementById('newBook').value) || 0, image: document.getElementById('newImageData').value });
+        inventory.push({ 
+            shortCode: generateShortCode(), 
+            area: document.getElementById('newArea').value || "未指定", 
+            category: finalCat || "未分類", 
+            sku: document.getElementById('newSKU').value || "N/A", 
+            name: name, unit: document.getElementById('unitSelect').value, 
+            price: parseFloat(document.getElementById('newPrice').value) || 0, // 留白自動變 0
+            bookQty: parseInt(document.getElementById('newBook').value) || 0, 
+            actualQty: parseInt(document.getElementById('newBook').value) || 0, 
+            image: document.getElementById('newImageData').value 
+        });
         saveAndRender(); closeModal('addModal'); vibrate();
         document.getElementById('newName').value = ''; document.getElementById('newPrice').value = ''; document.getElementById('newSKU').value = ''; document.getElementById('newBook').value = ''; clearImagePreview('newPreview', 'newImageData');
     }
@@ -415,7 +457,6 @@
     
     async function toggleAICamera() { const video = document.getElementById('aiVideo'); if (aiStream) { aiStream.getTracks().forEach(track => track.stop()); aiStream = null; } else { try { aiStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); video.srcObject = aiStream; } catch (err) { alert("無法開啟相機！"); } } }
     
-    // 🌟 優化版：手寫新增的 SKU 掃描器 (加入 16 Pro 對焦優化與提示連動)
     function toggleSkuScanner() { 
         const wrapperElement = document.getElementById('skuReaderWrapper'); 
         if (!isSkuScanning) { 
