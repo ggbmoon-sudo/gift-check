@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>MOON  v3.2</title>
+    <title>禮品盤點 Pro v3.6</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         /* iOS 原生配色與變數 */
@@ -104,10 +104,11 @@
         .image-upload-box img { width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0; display: none; background: white;}
         .file-input { display: none; }
 
-        #reader, #skuReader { width: 100%; border-radius: 16px; overflow: hidden; margin-bottom: 5px; background: black; }
+        #reader { width: 100%; border-radius: 16px; overflow: hidden; margin-bottom: 5px; background: black; }
         #aiCameraBox { text-align: center; } #aiVideo { width: 100%; border-radius: 16px; background: #000; margin-bottom: 15px; }
         #aiCanvas { display: none; } #aiLoading { display: none; color: var(--ios-purple); font-weight: 600; margin-top: 15px; }
 
+        /* 導覽列 */
         .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-top: 0.5px solid rgba(0,0,0,0.1); padding: 10px 16px calc(10px + var(--safe-bottom)); display: flex; justify-content: space-around; gap: 12px; z-index: 100; }
         .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; color: var(--ios-gray); font-size: 11px; font-weight: 500; gap: 4px; cursor: pointer; }
         .nav-btn .icon { font-size: 24px; line-height: 1; margin-bottom: 2px; }
@@ -120,7 +121,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">MOON 3.2</h1>
+    <h1 class="header-title">盤點助手 Pro 3.6</h1>
     <div class="dashboard">
         <div class="total-box"><span class="total-label">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
         <div>
@@ -200,10 +201,21 @@
             <input type="hidden" id="newImageData">
         </div>
         <div class="form-row">
-            <div class="form-group" style="flex: 2;"><label class="form-label">SKU 編號</label><div style="display:flex; gap:8px;"><input type="text" id="newSKU" class="ios-input" placeholder="掃描/AI自動"><button class="sync-icon-btn" style="background:var(--ios-green); color:white; border-radius:12px; width:48px; height:48px;" onclick="toggleSkuScanner()">📷</button></div></div>
+            <div class="form-group" style="flex: 2;">
+                <label class="form-label">SKU 編號</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="newSKU" class="ios-input" placeholder="掃描/AI自動">
+                    <button class="sync-icon-btn" style="background:var(--ios-green); color:white; border-radius:12px; width:48px; height:48px;" onclick="toggleSkuScanner()">📷</button>
+                </div>
+            </div>
             <div class="form-group" style="flex: 1;"><label class="form-label">區域</label><input type="text" id="newArea" class="ios-input" placeholder="例: A-01"></div>
         </div>
-        <div id="skuReader" style="display:none;"></div>
+        
+        <div id="skuReaderWrapper" style="display:none; margin-bottom: 15px;">
+            <div id="skuReader" style="width: 100%; border-radius: 16px; overflow: hidden; background: black;"></div>
+            <p class="helper-text" style="margin-top: 5px; text-align:center;">💡 iPhone Pro 鏡頭較大，請保持 15-20cm 距離掃描</p>
+        </div>
+
         <div class="form-group"><label class="form-label">產品名稱 (必填)</label><input type="text" id="newName" class="ios-input" placeholder="請輸入完整名稱"></div>
         <div class="form-row">
             <div class="form-group" style="flex: 1;"><label class="form-label">分類</label><select id="catSelect" class="ios-select" onchange="checkCustomCat('catSelect', 'customCat')"><option value="HAMPER類(cheap餅)">HAMPER(cheap餅)</option><option value="HAMPER類(朱古力,餅乾)">HAMPER(朱古力)</option><option value="BB野">BB野</option><option value="籃">籃</option><option value="ESG">ESG</option><option value="酒">酒</option><option value="果汁">果汁</option><option value="永生花">永生花</option><option value="custom">自定義...</option></select><input type="text" id="customCat" class="ios-input" placeholder="輸入新分類" style="display:none; margin-top:8px;"></div>
@@ -347,14 +359,12 @@
         document.getElementById('newName').value = ''; document.getElementById('newPrice').value = ''; document.getElementById('newSKU').value = ''; document.getElementById('newBook').value = ''; clearImagePreview('newPreview', 'newImageData');
     }
 
-    // 🌟 AI 抓條碼與估價升級
     async function captureAndAnalyze(mode) {
         if(mode === 'count' && inventory.length === 0) { alert("無庫存資料。請先下載或新增！"); return; }
         vibrate(); const video = document.getElementById('aiVideo'); const canvas = document.getElementById('aiCanvas'); const loading = document.getElementById('aiLoading');
         canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         const base64ImageForAI = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]; 
         
-        // 🚀 更新的 Prompt：要求尋找條碼並估算價格
         let promptText = mode === 'count' 
             ? `你是一個專業香港盤點助手。從下方清單找出照片中最符合的產品。\n\n【庫存清單】\n${inventory.map(i => `SKU: ${i.sku} | 名稱: ${i.name}`).join("\n")}\n\n以嚴格 JSON 回覆：\n{"sku": "最匹配SKU或 NEW", "name": "產品名稱", "confidence": "數字0-100", "reason": "簡單說明"}`
             : `你是一個香港建檔助手。請觀察照片並自動填表。如果你在包裝上能清楚看見條碼數字，請擷取出來；並根據你對香港市場的了解，估算這個產品的合理零售單價(HKD)。以嚴格 JSON 回覆：\n{"name": "詳細名稱", "category": "最接近類別", "unit": "件/箱/樽/套", "isCustomCategory": true/false, "sku": "擷取到的條碼數字(若無則留空)", "price": 估算單價數字(若無法估算請填0)}\n類別限選：HAMPER類(cheap餅), HAMPER類(朱古力,餅乾), BB野, 籃, ESG, 酒, 果汁, 永生花。都不像則 isCustomCategory 為 true 並自訂 category。`;
@@ -373,11 +383,8 @@
                 else if(confirm(`✨ 辨識成功！\n\n🎯 ${aiData.name}\n📈 信心：${aiData.confidence}%\n💡 原因：${aiData.reason}\n\n是否數量 +1 ？`)) { const idx = inventory.findIndex(i => i.sku === aiData.sku); if(idx !== -1) { inventory[idx].actualQty++; saveAndRender(); closeModal('aiModal'); toggleAICamera(); setTimeout(() => { const row = document.getElementById(`row-${idx}`); if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('highlight-card'); setTimeout(()=>row.classList.remove('highlight-card'), 1500); } }, 300); } }
             } else if (mode === 'add') {
                 document.getElementById('newName').value = aiData.name; 
-                
-                // 🌟 自動填入 AI 找到的條碼與市價
                 if (aiData.sku) document.getElementById('newSKU').value = aiData.sku;
                 if (aiData.price > 0) document.getElementById('newPrice').value = aiData.price;
-
                 const catSelect = document.getElementById('catSelect'); const customCatInput = document.getElementById('customCat');
                 if (aiData.isCustomCategory) { catSelect.value = "custom"; customCatInput.style.display = "block"; customCatInput.value = aiData.category; } else { catSelect.value = aiData.category; customCatInput.style.display = "none"; }
                 const unitSelect = document.getElementById('unitSelect'); let unitFound = false; for(let i=0; i<unitSelect.options.length; i++) { if(unitSelect.options[i].value === aiData.unit) { unitSelect.selectedIndex = i; unitFound = true; break; } }
@@ -392,15 +399,12 @@
         } catch (error) { loading.style.display = "none"; alert("AI 錯誤：" + error.message); }
     }
 
-    // 🌟 針對 iPhone 16 Pro 的掃描器優化
     function toggleScanner() { 
         if (isSkuScanning) toggleSkuScanner(); 
         const readerElement = document.getElementById('reader'); 
         if (!isScanning) { 
             html5QrCode = new Html5Qrcode("reader"); 
-            // 嘗試要求連續對焦
             const config = { fps: 10, qrbox: { width: 300, height: 150 } };
-            // 注意：某些 iOS 不支援 advanced constraint，所以直接用 environment 最保險，配合 UI 提示拉開距離
             html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => { 
                 if (scanCooldown) return; const idx = inventory.findIndex(i => i.sku === decodedText.trim()); 
                 if (idx !== -1) { vibrate(); inventory[idx].actualQty++; saveAndRender(); closeModal('scannerModal'); html5QrCode.stop().then(() => { isScanning = false; html5QrCode = null; }); setTimeout(() => { const row = document.getElementById(`row-${idx}`); if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('highlight-card'); setTimeout(()=>row.classList.remove('highlight-card'), 1500); } }, 300); } 
@@ -411,12 +415,22 @@
     
     async function toggleAICamera() { const video = document.getElementById('aiVideo'); if (aiStream) { aiStream.getTracks().forEach(track => track.stop()); aiStream = null; } else { try { aiStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); video.srcObject = aiStream; } catch (err) { alert("無法開啟相機！"); } } }
     
+    // 🌟 優化版：手寫新增的 SKU 掃描器 (加入 16 Pro 對焦優化與提示連動)
     function toggleSkuScanner() { 
-        const skuReaderElement = document.getElementById('skuReader'); 
+        const wrapperElement = document.getElementById('skuReaderWrapper'); 
         if (!isSkuScanning) { 
-            skuScanner = new Html5Qrcode("skuReader"); skuReaderElement.style.display = "block"; 
-            skuScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 100 } }, (decodedText) => { vibrate(); document.getElementById('newSKU').value = decodedText.trim(); skuScanner.stop().then(() => { isSkuScanning = false; skuScanner = null; skuReaderElement.style.display = "none"; }); }, (errorMessage) => {} ).then(() => { isSkuScanning = true; }).catch((err) => { alert("相機錯誤！"); }); 
-        } else { skuScanner.stop().then(() => { isSkuScanning = false; skuScanner = null; skuReaderElement.style.display = "none"; }); } 
+            skuScanner = new Html5Qrcode("skuReader"); 
+            wrapperElement.style.display = "block"; 
+            const config = { fps: 10, qrbox: { width: 280, height: 100 } };
+            skuScanner.start({ facingMode: "environment" }, config, 
+                (decodedText) => { 
+                    vibrate(); document.getElementById('newSKU').value = decodedText.trim(); 
+                    skuScanner.stop().then(() => { isSkuScanning = false; skuScanner = null; wrapperElement.style.display = "none"; }); 
+                }, (errorMessage) => {} 
+            ).then(() => { isSkuScanning = true; }).catch((err) => { alert("相機錯誤！"); wrapperElement.style.display = "none"; }); 
+        } else { 
+            skuScanner.stop().then(() => { isSkuScanning = false; skuScanner = null; wrapperElement.style.display = "none"; }); 
+        } 
     }
 
     async function downloadFromCloud() {
