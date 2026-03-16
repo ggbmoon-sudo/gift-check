@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>盤點  MOONv3.7</title>
+    <title>禮品盤點 Pro v3.8</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         /* iOS 原生配色與變數 */
@@ -59,8 +59,6 @@
         .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 500; }
         .tag-area { background: #E5F0FF; color: #007AFF; }
         .tag-cat { background: #E8F5E9; color: #34C759; }
-        
-        /* 🚨 新增：缺價警告標籤樣式 */
         .tag-warning { background: #FFEBEB; color: var(--ios-red); border: 1px solid #FFD6D6; }
         .price-missing { color: var(--ios-red); font-weight: 700; font-size: 15px; }
 
@@ -126,7 +124,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">盤點MOON 3.7</h1>
+    <h1 class="header-title">盤點助手 Pro 3.8</h1>
     <div class="dashboard">
         <div class="total-box"><span class="total-label">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
         <div>
@@ -262,6 +260,14 @@
     let editingIndex = -1; let lastCloudSnapshot = localStorage.getItem('cloud_snapshot') || null;
     let html5QrCode; let isScanning = false; let scanCooldown = false; let skuScanner; let isSkuScanning = false; let aiStream = null;
 
+    // 🌟 靈魂抽離技術：只儲存純文字屬性作為快照比對，捨棄超肥的照片資料
+    function getSnapshotString(dataArray) {
+        return JSON.stringify(dataArray.map(item => {
+            const { image, ...rest } = item; // 捨棄 image 欄位
+            return rest;
+        }));
+    }
+
     function openModal(id) { document.getElementById(id).style.display = 'flex'; }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     function vibrate() { if(navigator.vibrate) navigator.vibrate(50); }
@@ -276,16 +282,17 @@
         processImage(event, 'newPreview', 'newImageData'); openModal('addModal'); event.target.value = '';
     }
 
+    // 🌟 極限微縮圖引擎：寬度降至 150px，品質降至 50%
     function processImage(event, previewId, dataId) {
         const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
         reader.onload = function(e) {
             const img = new Image();
             img.onload = function() {
-                const MAX_WIDTH = 300; let scale = MAX_WIDTH / img.width; if (scale > 1) scale = 1;
+                const MAX_WIDTH = 150; let scale = MAX_WIDTH / img.width; if (scale > 1) scale = 1;
                 const canvas = document.createElement('canvas'); canvas.width = img.width * scale; canvas.height = img.height * scale;
                 const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.5); // 品質降至 0.5
                 document.getElementById(dataId).value = dataUrl;
                 const previewImg = document.getElementById(previewId); previewImg.src = dataUrl; previewImg.style.display = 'block';
             }
@@ -293,6 +300,7 @@
         }
         reader.readAsDataURL(file);
     }
+    
     function clearImagePreview(previewId, dataId) { document.getElementById(dataId).value = ''; document.getElementById(previewId).src = ''; document.getElementById(previewId).style.display = 'none'; }
 
     function viewImage(index) {
@@ -309,7 +317,6 @@
     function ensureShortCodes() { let changed = false; inventory.forEach(item => { if (!item.shortCode) { item.shortCode = generateShortCode(); changed = true; } }); if (changed) saveAndRender(); }
     ensureShortCodes();
 
-    // 🌟 重新渲染卡片 (加入缺價警示邏輯)
     function renderList() {
         const query = document.getElementById('search').value.toLowerCase(); const listContainer = document.getElementById('inventoryList'); listContainer.innerHTML = ''; let grandTotal = 0;
         inventory.forEach((item, index) => {
@@ -320,7 +327,6 @@
                 const imgBtnClass = item.image ? 'icon-btn has-image' : 'icon-btn'; 
                 const imgColor = item.image ? 'var(--ios-blue)' : 'var(--ios-light-gray)';
                 
-                // 🚨 判斷是否有單價
                 const isMissingPrice = !item.price || item.price === 0;
                 const priceDisplayClass = isMissingPrice ? 'price-missing' : 'price-info';
                 const priceText = isMissingPrice ? '$0 (缺價)' : `$${item.price}`;
@@ -333,7 +339,8 @@
                         <div class="tag-group">
                             <span class="tag tag-area">${item.area || '未分區'}</span>
                             <span class="tag tag-cat">${item.category}</span>
-                            ${warningBadge} </div>
+                            ${warningBadge}
+                        </div>
                     </div>
                     <div class="item-name-sku"><h3 class="item-name">${item.name}</h3><p class="item-sku">SKU: ${item.sku}</p></div>
                     <div class="item-price-unit">
@@ -352,8 +359,6 @@
     function openEdit(index) {
         editingIndex = index; const item = inventory[index];
         document.getElementById('editSKU').value = item.sku; document.getElementById('editArea').value = item.area; document.getElementById('editName').value = item.name; 
-        
-        // 編輯時載入價格，如果是 0 就顯示空白，方便輸入
         document.getElementById('editPrice').value = (item.price === 0) ? '' : item.price;
         
         if (item.image) { document.getElementById('editImageData').value = item.image; document.getElementById('editPreview').src = item.image; document.getElementById('editPreview').style.display = 'block'; } else { clearImagePreview('editPreview', 'editImageData'); }
@@ -369,10 +374,7 @@
         if (editingIndex === -1) return; const name = document.getElementById('editName').value; if (!name) return alert("請輸入產品名稱");
         const finalCat = (document.getElementById('editCatSelect').value === 'custom') ? document.getElementById('editCustomCat').value : document.getElementById('editCatSelect').value;
         inventory[editingIndex].sku = document.getElementById('editSKU').value || "N/A"; inventory[editingIndex].area = document.getElementById('editArea').value || "未指定"; inventory[editingIndex].name = name; inventory[editingIndex].category = finalCat || "未分類"; inventory[editingIndex].unit = document.getElementById('editUnitSelect').value; 
-        
-        // 確保留白時自動轉換為 0
         inventory[editingIndex].price = parseFloat(document.getElementById('editPrice').value) || 0; 
-        
         inventory[editingIndex].image = document.getElementById('editImageData').value;
         saveAndRender(); closeModal('editModal'); vibrate();
     }
@@ -392,7 +394,7 @@
             category: finalCat || "未分類", 
             sku: document.getElementById('newSKU').value || "N/A", 
             name: name, unit: document.getElementById('unitSelect').value, 
-            price: parseFloat(document.getElementById('newPrice').value) || 0, // 留白自動變 0
+            price: parseFloat(document.getElementById('newPrice').value) || 0, 
             bookQty: parseInt(document.getElementById('newBook').value) || 0, 
             actualQty: parseInt(document.getElementById('newBook').value) || 0, 
             image: document.getElementById('newImageData').value 
@@ -408,7 +410,7 @@
         const base64ImageForAI = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]; 
         
         let promptText = mode === 'count' 
-            ? `你是一個專業香港盤點助手。從下方清單找出照片中最符合的產品。\n\n【庫存清單】\n${inventory.map(i => `SKU: ${i.sku} | 名稱: ${i.name}`).join("\n")}\n\n以嚴格 JSON 回覆：\n{"sku": "最匹配SKU或 NEW", "name": "產品名稱", "confidence": "數字0-100", "reason": "簡單說明"}`
+            ? `你是一個專業香港盤點助手。從下方清單找出照片中最符合的產品。\n\n【庫存清單】\n${getSnapshotString(inventory)}\n\n以嚴格 JSON 回覆：\n{"sku": "最匹配SKU或 NEW", "name": "產品名稱", "confidence": "數字0-100", "reason": "簡單說明"}`
             : `你是一個香港建檔助手。請觀察照片並自動填表。如果你在包裝上能清楚看見條碼數字，請擷取出來；並根據你對香港市場的了解，估算這個產品的合理零售單價(HKD)。以嚴格 JSON 回覆：\n{"name": "詳細名稱", "category": "最接近類別", "unit": "件/箱/樽/套", "isCustomCategory": true/false, "sku": "擷取到的條碼數字(若無則留空)", "price": 估算單價數字(若無法估算請填0)}\n類別限選：HAMPER類(cheap餅), HAMPER類(朱古力,餅乾), BB野, 籃, ESG, 酒, 果汁, 永生花。都不像則 isCustomCategory 為 true 並自訂 category。`;
 
         loading.style.display = "block";
@@ -431,9 +433,9 @@
                 if (aiData.isCustomCategory) { catSelect.value = "custom"; customCatInput.style.display = "block"; customCatInput.value = aiData.category; } else { catSelect.value = aiData.category; customCatInput.style.display = "none"; }
                 const unitSelect = document.getElementById('unitSelect'); let unitFound = false; for(let i=0; i<unitSelect.options.length; i++) { if(unitSelect.options[i].value === aiData.unit) { unitSelect.selectedIndex = i; unitFound = true; break; } }
                 if(!unitFound) unitSelect.value = "其他";
-                const thumbCanvas = document.createElement('canvas'); const MAX_WIDTH = 300; let scale = MAX_WIDTH / canvas.width; if (scale > 1) scale = 1;
+                const thumbCanvas = document.createElement('canvas'); const MAX_WIDTH = 150; let scale = MAX_WIDTH / canvas.width; if (scale > 1) scale = 1;
                 thumbCanvas.width = canvas.width * scale; thumbCanvas.height = canvas.height * scale; thumbCanvas.getContext('2d').drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
-                const thumbDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.6);
+                const thumbDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.5);
                 document.getElementById('newImageData').value = thumbDataUrl; document.getElementById('newPreview').src = thumbDataUrl; document.getElementById('newPreview').style.display = 'block';
                 closeModal('aiModal'); toggleAICamera(); openModal('addModal');
                 alert(`✅ AI 已自動分析！\n\n判定：${aiData.name}\n條碼：${aiData.sku || '未找到'}\n估價：$${aiData.price || '0'}\n📸 圖片已儲存。`);
@@ -478,7 +480,7 @@
         document.getElementById('syncStatus').innerText = "下載中...";
         try {
             const noCacheUrl = GAS_URL + "?t=" + new Date().getTime(); const response = await fetch(noCacheUrl); const data = await response.json();
-            if (data && data.length > 0) { inventory = data; ensureShortCodes(); lastCloudSnapshot = JSON.stringify(data); localStorage.setItem('cloud_snapshot', lastCloudSnapshot); saveAndRender(); document.getElementById('syncStatus').innerText = "✅ 下載成功 " + new Date().toLocaleTimeString().slice(0,5); } else { document.getElementById('syncStatus').innerText = "雲端無資料"; }
+            if (data && data.length > 0) { inventory = data; ensureShortCodes(); lastCloudSnapshot = getSnapshotString(data); localStorage.setItem('cloud_snapshot', lastCloudSnapshot); saveAndRender(); document.getElementById('syncStatus').innerText = "✅ 下載成功 " + new Date().toLocaleTimeString().slice(0,5); } else { document.getElementById('syncStatus').innerText = "雲端無資料"; }
         } catch (error) { document.getElementById('syncStatus').innerText = "❌ 下載失敗"; alert("下載發生錯誤。"); }
     }
 
@@ -486,14 +488,14 @@
         document.getElementById('syncStatus').innerText = "檢查衝突中...";
         try {
             const checkUrl = GAS_URL + "?t=" + new Date().getTime(); const checkResp = await fetch(checkUrl); const latestCloudData = await checkResp.json();
-            if (lastCloudSnapshot && JSON.stringify(latestCloudData) !== lastCloudSnapshot) {
+            if (lastCloudSnapshot && getSnapshotString(latestCloudData) !== lastCloudSnapshot) {
                 const force = confirm("⚠️ 衝突警告！⚠️\n\n在你盤點期間，雲端資料已改變。\n\n[確定]：強制用你的資料覆蓋雲端\n[取消]：中止上傳，請先匯出 Excel 備份。");
                 if (!force) { document.getElementById('syncStatus').innerText = "❌ 已取消 (防呆保護)"; return; }
             }
             document.getElementById('syncStatus').innerText = "上傳中...";
             const uploadResp = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(inventory) });
             const result = await uploadResp.json(); if (result.status === "error") throw new Error(result.message);
-            lastCloudSnapshot = JSON.stringify(inventory); localStorage.setItem('cloud_snapshot', lastCloudSnapshot);
+            lastCloudSnapshot = getSnapshotString(inventory); localStorage.setItem('cloud_snapshot', lastCloudSnapshot);
             document.getElementById('syncStatus').innerText = "✅ 已上傳 " + new Date().toLocaleTimeString().slice(0,5);
         } catch (error) { document.getElementById('syncStatus').innerText = "❌ 上傳失敗"; alert("上傳失敗：\n" + error.message); }
     }
