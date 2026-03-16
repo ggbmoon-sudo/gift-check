@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>禮品盤點 Moon v2.5</title>
+    <title>禮品盤點 Moon v2.6</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         /* iOS 原生配色與變數 */
@@ -200,7 +200,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">盤點助手 Moon 2.5</h1>
+    <h1 class="header-title">盤點助手 Moon 2.6</h1>
     <div class="dashboard">
         <div class="total-box">
             <span class="total-label">資產總值</span>
@@ -647,38 +647,61 @@
         } else { skuScanner.stop().then(() => { isSkuScanning = false; skuScanner = null; skuReaderElement.style.display = "none"; }); }
     }
 
+    // ==========================================
+    // 🛡️ 雲端同步與防呆機制 (防快取 + 顯式錯誤追蹤版)
+    // ==========================================
     async function downloadFromCloud() {
         document.getElementById('syncStatus').innerText = "下載中...";
         try {
-            const response = await fetch(GAS_URL); 
+            // 🌟 關鍵修復 1：加入時間戳記 (?t=...) 強迫手機抓取最新資料，不讀舊快取
+            const noCacheUrl = GAS_URL + "?t=" + new Date().getTime();
+            const response = await fetch(noCacheUrl); 
             const data = await response.json();
+            
             if (data && data.length > 0) { 
                 inventory = data; 
-                ensureShortCodes(); // 下載後檢查是否有漏缺的代碼
+                ensureShortCodes(); // 確保舊資料也有短碼
                 lastCloudSnapshot = JSON.stringify(data);
                 localStorage.setItem('cloud_snapshot', lastCloudSnapshot);
+                saveAndRender(); 
                 document.getElementById('syncStatus').innerText = "✅ 下載成功 " + new Date().toLocaleTimeString().slice(0,5); 
             } else { 
                 document.getElementById('syncStatus').innerText = "雲端無資料"; 
             }
         } catch (error) { 
             document.getElementById('syncStatus').innerText = "❌ 下載失敗"; 
+            alert("下載發生錯誤，請確認網址或網路狀態。");
         }
     }
 
     async function uploadToCloud() {
         document.getElementById('syncStatus').innerText = "檢查衝突中...";
         try {
-            const checkResp = await fetch(GAS_URL);
+            // 🌟 關鍵修復 2：檢查衝突時也必須防快取
+            const checkUrl = GAS_URL + "?t=" + new Date().getTime();
+            const checkResp = await fetch(checkUrl);
             const latestCloudData = await checkResp.json();
             
             if (lastCloudSnapshot && JSON.stringify(latestCloudData) !== lastCloudSnapshot) {
-                const force = confirm("⚠️ 衝突警告！⚠️\n\n在你盤點期間，其他同事已經上傳了新資料。\n\n[確定]：強制用你的資料覆蓋雲端 (會覆蓋同事進度)\n[取消]：中止上傳，請先匯出 Excel 備份再處理。");
+                const force = confirm("⚠️ 衝突警告！⚠️\n\n在你盤點期間，雲端資料已改變。\n\n[確定]：強制用你的資料覆蓋雲端\n[取消]：中止上傳，請先匯出 Excel 備份。");
                 if (!force) { document.getElementById('syncStatus').innerText = "❌ 已取消 (防呆保護)"; return; }
             }
 
             document.getElementById('syncStatus').innerText = "上傳中...";
-            await fetch(GAS_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(inventory) });
+            
+            // 🌟 關鍵修復 3：移除 mode: "no-cors"，讓系統能抓出真正的錯誤
+            const uploadResp = await fetch(GAS_URL, { 
+                method: "POST", 
+                headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+                body: JSON.stringify(inventory) 
+            });
+            
+            const result = await uploadResp.json();
+            
+            // 檢查後台是否回傳錯誤
+            if (result.status === "error") {
+                throw new Error(result.message);
+            }
             
             lastCloudSnapshot = JSON.stringify(inventory);
             localStorage.setItem('cloud_snapshot', lastCloudSnapshot);
@@ -686,6 +709,7 @@
             document.getElementById('syncStatus').innerText = "✅ 已上傳 " + new Date().toLocaleTimeString().slice(0,5);
         } catch (error) { 
             document.getElementById('syncStatus').innerText = "❌ 上傳失敗"; 
+            alert("上傳失敗，詳細原因：\n" + error.message);
         }
     }
 
@@ -722,3 +746,4 @@
 </script>
 </body>
 </html>
+
