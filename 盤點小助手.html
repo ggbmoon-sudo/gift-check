@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>盤點 Moon v3.0</title>
+    <title>Moon Pro v3.1</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         /* iOS 原生配色與變數 */
         :root { 
             --ios-bg: #F2F2F7; --ios-card: #FFFFFF; --ios-blue: #007AFF; 
             --ios-green: #34C759; --ios-purple: #AF52DE; --ios-red: #FF3B30;
-            --ios-text: #1C1C1E; --ios-gray: #8E8E93; --ios-light-gray: #E5E5EA;
+            --ios-orange: #FF9500; --ios-text: #1C1C1E; --ios-gray: #8E8E93; --ios-light-gray: #E5E5EA;
             --safe-top: env(safe-area-inset-top, 20px);
             --safe-bottom: env(safe-area-inset-bottom, 20px);
         }
@@ -36,32 +36,23 @@
         .search-bar { width: 100%; padding: 10px 14px 10px 36px; background: #E3E3E8 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%238E8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>') no-repeat 10px center; border: none; border-radius: 10px; font-size: 17px; margin-bottom: 16px; outline: none; }
         .desktop-only { display: none !important; }
 
-        /* ========================================= */
         /* CSS Grid 卡片系統 */
-        /* ========================================= */
         #inventoryList { display: flex; flex-direction: column; gap: 12px; }
         .ios-card {
             background: var(--ios-card); border-radius: 16px; padding: 16px; box-shadow: 0 1px 5px rgba(0,0,0,0.05);
             display: grid;
-            grid-template-areas: 
-                "row code actions"
-                "area area area"
-                "name name name"
-                "price stepper stepper"
-                "total stepper stepper";
+            grid-template-areas: "row code actions" "area area area" "name name name" "price stepper stepper" "total stepper stepper";
             grid-template-columns: auto 1fr auto; gap: 8px; align-items: center;
         }
         .item-row-num { grid-area: row; font-weight: 800; color: var(--ios-gray); font-size: 18px; margin-right: 10px; }
         .item-short-code { grid-area: code; justify-self: start; }
         .short-code-badge { background: var(--ios-purple); color: white; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-family: monospace; font-size: 15px; letter-spacing: 2px; }
-        
         .item-area-cat { grid-area: area; margin-top: 4px; }
         .item-actions { grid-area: actions; display: flex; gap: 12px; justify-content: flex-end; align-items: center; }
         .item-name-sku { grid-area: name; margin-bottom: 4px; }
         .item-price-unit { grid-area: price; align-self: end; }
         .item-total { grid-area: total; }
         .stepper-container { grid-area: stepper; justify-self: end; align-self: center; }
-
         .item-name { font-size: 17px; font-weight: 600; margin: 0 0 4px 0; line-height: 1.3; }
         .item-sku { font-size: 13px; color: var(--ios-gray); margin: 0; }
         .tag-group { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -70,19 +61,15 @@
         .tag-cat { background: #E8F5E9; color: #34C759; }
         .price-info { font-size: 15px; font-weight: 500; }
         .total-price-text { font-size: 12px; color: var(--ios-gray); display: block; }
-        
         .stepper { display: flex; align-items: center; background: var(--ios-light-gray); border-radius: 8px; overflow: hidden; }
         .stepper-btn { background: none; border: none; font-size: 20px; color: var(--ios-blue); width: 36px; height: 32px; display: flex; justify-content: center; align-items: center; cursor: pointer; }
         .qty-input { width: 44px; height: 32px; border: none; background: none; text-align: center; font-size: 16px; font-weight: 600; padding: 0; }
         .unit-text { font-size: 13px; color: var(--ios-gray); margin-left: 6px; }
-
         .icon-btn { background: none; border: none; font-size: 20px; padding: 0; cursor: pointer; }
         .has-image { position: relative; }
         .has-image::after { content: ''; position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; background: var(--ios-green); border-radius: 50%; }
 
-        /* ========================================= */
         /* 桌面版大螢幕樣式 */
-        /* ========================================= */
         @media (min-width: 1024px) {
             body { max-width: 1200px; margin: auto; padding-bottom: 20px; }
             .sticky-header { padding-top: 20px; border-radius: 0 0 16px 16px; margin-bottom: 20px;}
@@ -110,48 +97,35 @@
         .form-label { display: block; font-size: 13px; color: var(--ios-gray); margin-bottom: 6px; margin-left: 4px; }
         .ios-input, .ios-select { width: 100%; padding: 14px; background: var(--ios-card); border: 1px solid #D1D1D6; border-radius: 12px; font-size: 16px; outline: none; -webkit-appearance: none; }
         .form-row { display: flex; gap: 10px; }
-
         .action-btn { width: 100%; padding: 16px; border: none; border-radius: 14px; font-size: 17px; font-weight: 600; color: white; cursor: pointer; text-align: center; display: block; margin-top: 10px; }
-        .btn-primary { background: var(--ios-blue); }
-        .btn-ai { background: linear-gradient(135deg, #AF52DE, #5E5CE6); }
-        .btn-success { background: var(--ios-green); }
+        .btn-primary { background: var(--ios-blue); } .btn-ai { background: linear-gradient(135deg, #AF52DE, #5E5CE6); } .btn-success { background: var(--ios-green); } .btn-orange { background: var(--ios-orange); }
 
-        /* 圖片上傳專用 UI */
-        .image-upload-box {
-            width: 100%; height: 120px; background: var(--ios-light-gray); border: 2px dashed #C7C7CC;
-            border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: var(--ios-gray); cursor: pointer; overflow: hidden; position: relative;
-        }
+        .image-upload-box { width: 100%; height: 120px; background: var(--ios-light-gray); border: 2px dashed #C7C7CC; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--ios-gray); cursor: pointer; overflow: hidden; position: relative; }
         .image-upload-box img { width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0; display: none; background: white;}
         .file-input { display: none; }
 
         #reader, #skuReader { width: 100%; border-radius: 16px; overflow: hidden; margin-bottom: 15px; background: black; }
-        #aiCameraBox { text-align: center; }
-        #aiVideo { width: 100%; border-radius: 16px; background: #000; margin-bottom: 15px; }
-        #aiCanvas { display: none; }
-        #aiLoading { display: none; color: var(--ios-purple); font-weight: 600; margin-top: 15px; }
+        #aiCameraBox { text-align: center; } #aiVideo { width: 100%; border-radius: 16px; background: #000; margin-bottom: 15px; }
+        #aiCanvas { display: none; } #aiLoading { display: none; color: var(--ios-purple); font-weight: 600; margin-top: 15px; }
 
+        /* 導覽列 (改為4個按鈕) */
         .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-top: 0.5px solid rgba(0,0,0,0.1); padding: 10px 16px calc(10px + var(--safe-bottom)); display: flex; justify-content: space-around; gap: 12px; z-index: 100; }
         .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: none; border: none; color: var(--ios-gray); font-size: 11px; font-weight: 500; gap: 4px; cursor: pointer; }
         .nav-btn .icon { font-size: 24px; line-height: 1; margin-bottom: 2px; }
-        .nav-btn.scan { color: var(--ios-blue); } .nav-btn.ai { color: var(--ios-purple); } .nav-btn.add { color: var(--ios-green); }
+        .nav-btn.scan { color: var(--ios-blue); } .nav-btn.ai { color: var(--ios-purple); } 
+        .nav-btn.photo { color: var(--ios-orange); } /* 新增的拍照按鈕顏色 */
+        .nav-btn.add { color: var(--ios-green); }
         .settings-btn { margin-top: 30px; background: none; border: none; color: var(--ios-gray); width: 100%; text-align: center; font-size: 14px; padding: 10px; text-decoration: underline; cursor: pointer;}
     </style>
 </head>
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">盤點 Moon v3.0</h1>
+    <h1 class="header-title">mOON v3.1</h1>
     <div class="dashboard">
-        <div class="total-box">
-            <span class="total-label">資產總值</span>
-            <span class="total-val" id="grandTotal">$0</span>
-        </div>
+        <div class="total-box"><span class="total-label">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
         <div>
-            <div class="sync-group">
-                <button class="sync-icon-btn" onclick="downloadFromCloud()" title="從雲端下載最新資料">⬇️</button>
-                <button class="sync-icon-btn" style="color: var(--ios-green);" onclick="uploadToCloud()" title="安全上傳至雲端">⬆️</button>
-            </div>
+            <div class="sync-group"><button class="sync-icon-btn" onclick="downloadFromCloud()" title="下載">⬇️</button><button class="sync-icon-btn" style="color: var(--ios-green);" onclick="uploadToCloud()" title="上傳">⬆️</button></div>
             <div id="syncStatus">尚未同步</div>
         </div>
     </div>
@@ -160,8 +134,9 @@
 <div class="container">
     <div class="desktop-toolbar desktop-only">
         <button class="action-btn btn-primary" onclick="openModal('scannerModal'); toggleScanner();">📷 條碼盤點</button>
-        <button class="action-btn btn-ai" onclick="openModal('aiModal'); toggleAICamera();">✨ AI 視覺建檔</button>
-        <button class="action-btn btn-success" onclick="openModal('addModal')">➕ 手動新增</button>
+        <button class="action-btn btn-ai" onclick="openModal('aiModal'); toggleAICamera();">✨ AI 建檔</button>
+        <button class="action-btn btn-orange" onclick="triggerQuickPhoto()">📸 拍照建檔</button>
+        <button class="action-btn btn-success" onclick="openModal('addModal'); clearImagePreview('newPreview', 'newImageData');">➕ 手寫新增</button>
     </div>
 
     <input type="text" id="search" class="search-bar" placeholder="搜尋名稱、短碼、SKU 或區域..." onkeyup="renderList()">
@@ -169,25 +144,23 @@
     <div class="list-header-row desktop-only">
         <div>項次</div><div>四碼代號</div><div>區域/分類</div><div>品名/SKU</div><div>單價</div><div>實盤數量</div><div>總計</div><div style="text-align: right;">操作</div>
     </div>
-
     <div id="inventoryList"></div>
-    
     <button class="settings-btn" onclick="exportToExcel()">匯出 Excel 報表</button>
     <button class="settings-btn" style="color:var(--ios-red); margin-top:5px;" onclick="confirmClear()">清空本機資料</button>
 </div>
 
 <div class="bottom-nav">
-    <button class="nav-btn scan" onclick="openModal('scannerModal'); toggleScanner();"><span class="icon">📷</span><span>條碼盤點</span></button>
-    <button class="nav-btn ai" onclick="openModal('aiModal'); toggleAICamera();"><span class="icon">✨</span><span>AI 視覺</span></button>
-    <button class="nav-btn add" onclick="openModal('addModal'); clearImagePreview('newPreview', 'newImageData');"><span class="icon">➕</span><span>手動建檔</span></button>
+    <button class="nav-btn scan" onclick="openModal('scannerModal'); toggleScanner();"><span class="icon">🔍</span><span>掃條碼</span></button>
+    <button class="nav-btn ai" onclick="openModal('aiModal'); toggleAICamera();"><span class="icon">✨</span><span>AI 建檔</span></button>
+    <button class="nav-btn photo" onclick="triggerQuickPhoto()"><span class="icon">📸</span><span>拍照建檔</span></button>
+    <button class="nav-btn add" onclick="openModal('addModal'); clearImagePreview('newPreview', 'newImageData');"><span class="icon">📝</span><span>手寫輸入</span></button>
 </div>
+
+<input type="file" id="quickCameraInput" class="file-input" accept="image/*" capture="environment" onchange="handleQuickPhoto(event)">
 
 <div id="viewImageModal" class="modal">
     <div class="modal-content" style="text-align:center;">
-        <div class="modal-header">
-            <h2 class="modal-title">產品圖片</h2>
-            <button class="close-btn" onclick="closeModal('viewImageModal')">關閉</button>
-        </div>
+        <div class="modal-header"><h2 class="modal-title">產品圖片</h2><button class="close-btn" onclick="closeModal('viewImageModal')">關閉</button></div>
         <img id="largeImageDisplay" src="" style="max-width:100%; border-radius:12px; display:none; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
         <p id="noImageMsg" style="color:var(--ios-gray); display:none; margin: 30px 0;">此產品尚未上傳圖片</p>
     </div>
@@ -195,21 +168,14 @@
 
 <div id="scannerModal" class="modal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h2 class="modal-title">條碼盤點</h2>
-            <button class="close-btn" onclick="closeModal('scannerModal'); if(isScanning) toggleScanner();">關閉</button>
-        </div>
-        <div id="reader"></div>
-        <p style="text-align:center; color:var(--ios-gray); font-size:13px;">將條碼置於框內即可自動 +1</p>
+        <div class="modal-header"><h2 class="modal-title">條碼盤點</h2><button class="close-btn" onclick="closeModal('scannerModal'); if(isScanning) toggleScanner();">關閉</button></div>
+        <div id="reader"></div><p style="text-align:center; color:var(--ios-gray); font-size:13px;">將條碼置於框內即可自動 +1</p>
     </div>
 </div>
 
 <div id="aiModal" class="modal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h2 class="modal-title">✨ AI 視覺助手</h2>
-            <button class="close-btn" onclick="closeModal('aiModal'); if(document.getElementById('aiCameraBox').style.display === 'block') toggleAICamera();">關閉</button>
-        </div>
+        <div class="modal-header"><h2 class="modal-title">✨ AI 視覺助手</h2><button class="close-btn" onclick="closeModal('aiModal'); if(document.getElementById('aiCameraBox').style.display === 'block') toggleAICamera();">關閉</button></div>
         <div id="aiCameraBox">
             <video id="aiVideo" autoplay playsinline></video>
             <canvas id="aiCanvas"></canvas>
@@ -224,16 +190,12 @@
 
 <div id="addModal" class="modal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h2 class="modal-title">新增禮品</h2>
-            <button class="close-btn" onclick="closeModal('addModal')">取消</button>
-        </div>
+        <div class="modal-header"><h2 class="modal-title">新增禮品</h2><button class="close-btn" onclick="closeModal('addModal')">取消</button></div>
         
         <div class="form-group">
             <label class="form-label">產品圖片 (可選)</label>
             <div class="image-upload-box" onclick="document.getElementById('newImageInput').click()">
-                <span style="font-size:30px;">📷</span>
-                <span style="font-size:13px; margin-top:5px;">點擊拍攝或上傳</span>
+                <span style="font-size:30px;">📷</span><span style="font-size:13px; margin-top:5px;">點擊拍攝或上傳</span>
                 <img id="newPreview" src="">
             </div>
             <input type="file" id="newImageInput" class="file-input" accept="image/*" capture="environment" onchange="processImage(event, 'newPreview', 'newImageData')">
@@ -260,22 +222,15 @@
 
 <div id="editModal" class="modal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h2 class="modal-title">修改資料</h2>
-            <button class="close-btn" onclick="closeModal('editModal')">取消</button>
-        </div>
-
+        <div class="modal-header"><h2 class="modal-title">修改資料</h2><button class="close-btn" onclick="closeModal('editModal')">取消</button></div>
         <div class="form-group">
             <label class="form-label">產品圖片</label>
             <div class="image-upload-box" onclick="document.getElementById('editImageInput').click()">
-                <span style="font-size:30px;">📷</span>
-                <span style="font-size:13px; margin-top:5px;">點擊更換照片</span>
-                <img id="editPreview" src="">
+                <span style="font-size:30px;">📷</span><span style="font-size:13px; margin-top:5px;">點擊更換照片</span><img id="editPreview" src="">
             </div>
             <input type="file" id="editImageInput" class="file-input" accept="image/*" capture="environment" onchange="processImage(event, 'editPreview', 'editImageData')">
             <input type="hidden" id="editImageData">
         </div>
-
         <div class="form-row">
             <div class="form-group" style="flex: 2;"><label class="form-label">SKU 編號</label><input type="text" id="editSKU" class="ios-input" placeholder="SKU"></div>
             <div class="form-group" style="flex: 1;"><label class="form-label">區域</label><input type="text" id="editArea" class="ios-input" placeholder="區域"></div>
@@ -293,140 +248,87 @@
 <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
     let inventory = JSON.parse(localStorage.getItem('gift_cloud_v2')) || [];
-    let editingIndex = -1; 
-    let lastCloudSnapshot = localStorage.getItem('cloud_snapshot') || null;
-    
+    let editingIndex = -1; let lastCloudSnapshot = localStorage.getItem('cloud_snapshot') || null;
+    let html5QrCode; let isScanning = false; let scanCooldown = false; let skuScanner; let isSkuScanning = false; let aiStream = null;
+
     function openModal(id) { document.getElementById(id).style.display = 'flex'; }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     function vibrate() { if(navigator.vibrate) navigator.vibrate(50); }
 
-    let html5QrCode; let isScanning = false; let scanCooldown = false;
-    let skuScanner; let isSkuScanning = false; let aiStream = null;
+    // ==========================================
+    // 📸 快速拍照建檔專用函數 (不耗 AI)
+    // ==========================================
+    function triggerQuickPhoto() {
+        // 清空新增表單
+        clearImagePreview('newPreview', 'newImageData');
+        document.getElementById('newName').value = '';
+        document.getElementById('newPrice').value = '';
+        document.getElementById('newSKU').value = '';
+        document.getElementById('newBook').value = '';
+        // 觸發隱藏的相機 Input
+        document.getElementById('quickCameraInput').click();
+    }
 
-    // ==========================================
-    // 🗜️ 終極圖片壓縮引擎 (防止容量爆炸)
-    // ==========================================
+    function handleQuickPhoto(event) {
+        if (!event.target.files[0]) return;
+        // 處理照片並塞入新增表單的預覽框
+        processImage(event, 'newPreview', 'newImageData');
+        // 拍完照後，自動彈出新增表單讓使用者打字
+        openModal('addModal');
+        // 清空 input 讓下次點擊還能觸發
+        event.target.value = '';
+    }
+
+    // --- 圖片壓縮引擎 ---
     function processImage(event, previewId, dataId) {
-        const file = event.target.files[0];
-        if (!file) return;
-
+        const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
         reader.onload = function(e) {
             const img = new Image();
             img.onload = function() {
-                // 設定縮圖最大寬度為 300px，大幅降低容量
-                const MAX_WIDTH = 300;
-                let scale = MAX_WIDTH / img.width;
-                if (scale > 1) scale = 1; // 如果原圖本來就很小就不放大
-
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width * scale;
-                canvas.height = img.height * scale;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                // 壓縮成 60% 質量的 JPEG
+                const MAX_WIDTH = 300; let scale = MAX_WIDTH / img.width; if (scale > 1) scale = 1;
+                const canvas = document.createElement('canvas'); canvas.width = img.width * scale; canvas.height = img.height * scale;
+                const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-                
-                // 顯示預覽並存入隱藏欄位
                 document.getElementById(dataId).value = dataUrl;
-                const previewImg = document.getElementById(previewId);
-                previewImg.src = dataUrl;
-                previewImg.style.display = 'block';
+                const previewImg = document.getElementById(previewId); previewImg.src = dataUrl; previewImg.style.display = 'block';
             }
             img.src = e.target.result;
         }
         reader.readAsDataURL(file);
     }
+    function clearImagePreview(previewId, dataId) { document.getElementById(dataId).value = ''; document.getElementById(previewId).src = ''; document.getElementById(previewId).style.display = 'none'; }
 
-    // 清空預覽
-    function clearImagePreview(previewId, dataId) {
-        document.getElementById(dataId).value = '';
-        document.getElementById(previewId).src = '';
-        document.getElementById(previewId).style.display = 'none';
-    }
-
-    // ==========================================
-    // 🖼️ 觀看圖片功能
-    // ==========================================
     function viewImage(index) {
-        const item = inventory[index];
-        const imgEl = document.getElementById('largeImageDisplay');
-        const msgEl = document.getElementById('noImageMsg');
-        
-        if (item.image && item.image.startsWith('data:image')) {
-            imgEl.src = item.image;
-            imgEl.style.display = 'inline-block';
-            msgEl.style.display = 'none';
-        } else {
-            imgEl.style.display = 'none';
-            msgEl.style.display = 'block';
-        }
+        const item = inventory[index]; const imgEl = document.getElementById('largeImageDisplay'); const msgEl = document.getElementById('noImageMsg');
+        if (item.image && item.image.startsWith('data:image')) { imgEl.src = item.image; imgEl.style.display = 'inline-block'; msgEl.style.display = 'none'; } 
+        else { imgEl.style.display = 'none'; msgEl.style.display = 'block'; }
         openModal('viewImageModal');
     }
 
     function generateShortCode() {
-        const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-        let code;
-        while (true) {
-            code = ''; for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-            if (!inventory.some(item => item.shortCode === code)) break;
-        } return code;
+        const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; let code;
+        while (true) { code = ''; for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length)); if (!inventory.some(item => item.shortCode === code)) break; } return code;
     }
-
-    function ensureShortCodes() {
-        let changed = false;
-        inventory.forEach(item => { if (!item.shortCode) { item.shortCode = generateShortCode(); changed = true; } });
-        if (changed) saveAndRender();
-    }
+    function ensureShortCodes() { let changed = false; inventory.forEach(item => { if (!item.shortCode) { item.shortCode = generateShortCode(); changed = true; } }); if (changed) saveAndRender(); }
     ensureShortCodes();
 
     function renderList() {
         const query = document.getElementById('search').value.toLowerCase();
-        const listContainer = document.getElementById('inventoryList');
-        listContainer.innerHTML = '';
-        let grandTotal = 0;
-
+        const listContainer = document.getElementById('inventoryList'); listContainer.innerHTML = ''; let grandTotal = 0;
         inventory.forEach((item, index) => {
-            const itemTotal = item.price * item.actualQty;
-            grandTotal += itemTotal;
-
+            const itemTotal = item.price * item.actualQty; grandTotal += itemTotal;
             if (Object.values(item).some(val => String(val).toLowerCase().includes(query))) {
-                const card = document.createElement('div');
-                card.className = 'ios-card';
-                card.id = `row-${index}`;
-                
-                // 判斷按鈕是否要有小綠點 (代表有圖片)
-                const imgBtnClass = item.image ? 'icon-btn has-image' : 'icon-btn';
-                const imgColor = item.image ? 'var(--ios-blue)' : 'var(--ios-light-gray)';
-
+                const card = document.createElement('div'); card.className = 'ios-card'; card.id = `row-${index}`;
+                const imgBtnClass = item.image ? 'icon-btn has-image' : 'icon-btn'; const imgColor = item.image ? 'var(--ios-blue)' : 'var(--ios-light-gray)';
                 card.innerHTML = `
-                    <div class="item-row-num">#${index + 1}</div>
-                    <div class="item-short-code"><span class="short-code-badge">${item.shortCode}</span></div>
-                    <div class="item-area-cat">
-                        <div class="tag-group">
-                            <span class="tag tag-area">${item.area || '未分區'}</span><span class="tag tag-cat">${item.category}</span>
-                        </div>
-                    </div>
-                    <div class="item-name-sku">
-                        <h3 class="item-name">${item.name}</h3><p class="item-sku">SKU: ${item.sku}</p>
-                    </div>
-                    <div class="item-price-unit">
-                        <span class="price-info">$${item.price} <span class="unit-text">/ ${item.unit}</span></span>
-                    </div>
+                    <div class="item-row-num">#${index + 1}</div><div class="item-short-code"><span class="short-code-badge">${item.shortCode}</span></div>
+                    <div class="item-area-cat"><div class="tag-group"><span class="tag tag-area">${item.area || '未分區'}</span><span class="tag tag-cat">${item.category}</span></div></div>
+                    <div class="item-name-sku"><h3 class="item-name">${item.name}</h3><p class="item-sku">SKU: ${item.sku}</p></div>
+                    <div class="item-price-unit"><span class="price-info">$${item.price} <span class="unit-text">/ ${item.unit}</span></span></div>
                     <div class="item-total"><span class="total-price-text">總計: $${itemTotal.toLocaleString()}</span></div>
-                    <div class="stepper-container">
-                        <div class="stepper">
-                            <button class="stepper-btn" onclick="adjust(${index},-1)">−</button>
-                            <input type="number" class="qty-input" value="${item.actualQty}" onchange="updateQty(${index}, this.value)">
-                            <button class="stepper-btn" onclick="adjust(${index},1)">+</button>
-                        </div>
-                    </div>
-                    <div class="item-actions">
-                        <button class="${imgBtnClass}" style="color:${imgColor};" onclick="viewImage(${index})" title="圖片">🖼️</button>
-                        <button class="edit-btn" onclick="openEdit(${index})" title="修改">✏️</button>
-                        <button class="delete-btn" onclick="remove(${index})" title="刪除">✕</button>
-                    </div>
+                    <div class="stepper-container"><div class="stepper"><button class="stepper-btn" onclick="adjust(${index},-1)">−</button><input type="number" class="qty-input" value="${item.actualQty}" onchange="updateQty(${index}, this.value)"><button class="stepper-btn" onclick="adjust(${index},1)">+</button></div></div>
+                    <div class="item-actions"><button class="${imgBtnClass}" style="color:${imgColor};" onclick="viewImage(${index})" title="圖片">🖼️</button><button class="edit-btn" onclick="openEdit(${index})" title="修改">✏️</button><button class="delete-btn" onclick="remove(${index})" title="刪除">✕</button></div>
                 `;
                 listContainer.appendChild(card);
             }
@@ -436,18 +338,8 @@
 
     function openEdit(index) {
         editingIndex = index; const item = inventory[index];
-        document.getElementById('editSKU').value = item.sku; document.getElementById('editArea').value = item.area;
-        document.getElementById('editName').value = item.name; document.getElementById('editPrice').value = item.price;
-        
-        // 載入舊圖片
-        if (item.image) {
-            document.getElementById('editImageData').value = item.image;
-            document.getElementById('editPreview').src = item.image;
-            document.getElementById('editPreview').style.display = 'block';
-        } else {
-            clearImagePreview('editPreview', 'editImageData');
-        }
-
+        document.getElementById('editSKU').value = item.sku; document.getElementById('editArea').value = item.area; document.getElementById('editName').value = item.name; document.getElementById('editPrice').value = item.price;
+        if (item.image) { document.getElementById('editImageData').value = item.image; document.getElementById('editPreview').src = item.image; document.getElementById('editPreview').style.display = 'block'; } else { clearImagePreview('editPreview', 'editImageData'); }
         const catSelect = document.getElementById('editCatSelect'); const customCatInput = document.getElementById('editCustomCat');
         let catFound = false; for(let i=0; i<catSelect.options.length; i++) { if(catSelect.options[i].value === item.category) { catSelect.selectedIndex = i; catFound = true; break; } }
         if(!catFound) { catSelect.value = 'custom'; customCatInput.style.display = 'block'; customCatInput.value = item.category; } else { customCatInput.style.display = 'none'; }
@@ -458,67 +350,32 @@
     }
 
     function saveEdit() {
-        if (editingIndex === -1) return;
-        const name = document.getElementById('editName').value; if (!name) return alert("請輸入產品名稱");
+        if (editingIndex === -1) return; const name = document.getElementById('editName').value; if (!name) return alert("請輸入產品名稱");
         const finalCat = (document.getElementById('editCatSelect').value === 'custom') ? document.getElementById('editCustomCat').value : document.getElementById('editCatSelect').value;
-
-        inventory[editingIndex].sku = document.getElementById('editSKU').value || "N/A";
-        inventory[editingIndex].area = document.getElementById('editArea').value || "未指定";
-        inventory[editingIndex].name = name; inventory[editingIndex].category = finalCat || "未分類";
-        inventory[editingIndex].unit = document.getElementById('editUnitSelect').value;
-        inventory[editingIndex].price = parseFloat(document.getElementById('editPrice').value) || 0;
-        // 儲存圖片
-        inventory[editingIndex].image = document.getElementById('editImageData').value;
-
+        inventory[editingIndex].sku = document.getElementById('editSKU').value || "N/A"; inventory[editingIndex].area = document.getElementById('editArea').value || "未指定"; inventory[editingIndex].name = name; inventory[editingIndex].category = finalCat || "未分類"; inventory[editingIndex].unit = document.getElementById('editUnitSelect').value; inventory[editingIndex].price = parseFloat(document.getElementById('editPrice').value) || 0; inventory[editingIndex].image = document.getElementById('editImageData').value;
         saveAndRender(); closeModal('editModal'); vibrate();
     }
 
     function adjust(index, amt) { vibrate(); inventory[index].actualQty = Math.max(0, inventory[index].actualQty + amt); saveAndRender(); }
     function updateQty(index, val) { inventory[index].actualQty = parseInt(val) || 0; saveAndRender(); }
     function remove(index) { if(confirm("確定刪除此品項？")) { inventory.splice(index, 1); saveAndRender(); } }
-
-    function saveAndRender() {
-        inventory.sort((a, b) => { if (a.area !== b.area) return a.area.localeCompare(b.area); return (b.price * b.actualQty) - (a.price * a.actualQty); });
-        localStorage.setItem('gift_cloud_v2', JSON.stringify(inventory)); renderList();
-    }
-
+    function saveAndRender() { inventory.sort((a, b) => { if (a.area !== b.area) return a.area.localeCompare(b.area); return (b.price * b.actualQty) - (a.price * a.actualQty); }); localStorage.setItem('gift_cloud_v2', JSON.stringify(inventory)); renderList(); }
     function checkCustomCat(selectId, inputId) { document.getElementById(inputId).style.display = (document.getElementById(selectId).value === 'custom') ? 'block' : 'none'; }
 
     function addItem() {
         const name = document.getElementById('newName').value; if (!name) return alert("請輸入產品名稱");
         const finalCat = (document.getElementById('catSelect').value === 'custom') ? document.getElementById('customCat').value : document.getElementById('catSelect').value;
-        
-        inventory.push({ 
-            shortCode: generateShortCode(), 
-            area: document.getElementById('newArea').value || "未指定", 
-            category: finalCat || "未分類", 
-            sku: document.getElementById('newSKU').value || "N/A", 
-            name: name, unit: document.getElementById('unitSelect').value, 
-            price: parseFloat(document.getElementById('newPrice').value) || 0, 
-            bookQty: parseInt(document.getElementById('newBook').value) || 0, 
-            actualQty: parseInt(document.getElementById('newBook').value) || 0,
-            image: document.getElementById('newImageData').value // 儲存圖片
-        });
+        inventory.push({ shortCode: generateShortCode(), area: document.getElementById('newArea').value || "未指定", category: finalCat || "未分類", sku: document.getElementById('newSKU').value || "N/A", name: name, unit: document.getElementById('unitSelect').value, price: parseFloat(document.getElementById('newPrice').value) || 0, bookQty: parseInt(document.getElementById('newBook').value) || 0, actualQty: parseInt(document.getElementById('newBook').value) || 0, image: document.getElementById('newImageData').value });
         saveAndRender(); closeModal('addModal'); vibrate();
-        document.getElementById('newName').value = ''; document.getElementById('newPrice').value = ''; document.getElementById('newSKU').value = ''; document.getElementById('newBook').value = '';
-        clearImagePreview('newPreview', 'newImageData');
+        document.getElementById('newName').value = ''; document.getElementById('newPrice').value = ''; document.getElementById('newSKU').value = ''; document.getElementById('newBook').value = ''; clearImagePreview('newPreview', 'newImageData');
     }
 
-    // AI 與相機
     async function captureAndAnalyze(mode) {
         if(mode === 'count' && inventory.length === 0) { alert("無庫存資料。請先下載或新增！"); return; }
-        vibrate();
-        const video = document.getElementById('aiVideo'); const canvas = document.getElementById('aiCanvas'); const loading = document.getElementById('aiLoading');
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // 傳給 AI 辨識用的圖 (稍微清晰一點)
+        vibrate(); const video = document.getElementById('aiVideo'); const canvas = document.getElementById('aiCanvas'); const loading = document.getElementById('aiLoading');
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         const base64ImageForAI = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]; 
-
-        let promptText = mode === 'count' 
-            ? `你是一個專業香港盤點助手。從下方清單找出照片中最符合的產品。\n\n【庫存清單】\n${inventory.map(i => `SKU: ${i.sku} | 名稱: ${i.name}`).join("\n")}\n\n以嚴格 JSON 回覆：\n{"sku": "最匹配SKU或 NEW", "name": "產品名稱", "confidence": "數字0-100", "reason": "簡單說明"}`
-            : `你是一個香港建檔助手。觀察照片自動填表。以嚴格 JSON 回覆：\n{"name": "詳細名稱", "category": "最接近類別", "unit": "件/箱/樽/套", "isCustomCategory": true/false}\n類別限選：HAMPER類(cheap餅), HAMPER類(朱古力,餅乾), BB野, 籃, ESG, 酒, 果汁, 永生花。都不像則 isCustomCategory 為 true 並自訂 category。`;
-
+        let promptText = mode === 'count' ? `你是一個專業香港盤點助手。從下方清單找出照片中最符合的產品。\n\n【庫存清單】\n${inventory.map(i => `SKU: ${i.sku} | 名稱: ${i.name}`).join("\n")}\n\n以嚴格 JSON 回覆：\n{"sku": "最匹配SKU或 NEW", "name": "產品名稱", "confidence": "數字0-100", "reason": "簡單說明"}` : `你是一個香港建檔助手。觀察照片自動填表。以嚴格 JSON 回覆：\n{"name": "詳細名稱", "category": "最接近類別", "unit": "件/箱/樽/套", "isCustomCategory": true/false}\n類別限選：HAMPER類(cheap餅), HAMPER類(朱古力,餅乾), BB野, 籃, ESG, 酒, 果汁, 永生花。都不像則 isCustomCategory 為 true 並自訂 category。`;
         loading.style.display = "block";
         try {
             const payload = { action: "gemini", prompt: promptText, image: base64ImageForAI };
@@ -526,35 +383,20 @@
             const result = await response.json();
             if (result.status === "success" && !result.candidates) throw new Error("GAS 後台版本未更新！");
             if (result.error) throw new Error(result.error.message);
-
             const aiData = JSON.parse(result.candidates[0].content.parts[0].text.replace(/```json/g, "").replace(/```/g, "").trim());
             loading.style.display = "none";
-
             if (mode === 'count') {
                 if (aiData.sku === "NEW" || aiData.confidence < 50) { alert(`🤖 相似度太低，AI 推測這可能是：\n${aiData.name}\n請改用「智能建檔」。`); } 
-                else if(confirm(`✨ 辨識成功！\n\n🎯 ${aiData.name}\n📈 信心：${aiData.confidence}%\n💡 原因：${aiData.reason}\n\n是否數量 +1 ？`)) {
-                    const idx = inventory.findIndex(i => i.sku === aiData.sku);
-                    if(idx !== -1) { inventory[idx].actualQty++; saveAndRender(); closeModal('aiModal'); toggleAICamera(); setTimeout(() => { const row = document.getElementById(`row-${idx}`); if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('highlight-card'); setTimeout(()=>row.classList.remove('highlight-card'), 1500); } }, 300); }
-                }
+                else if(confirm(`✨ 辨識成功！\n\n🎯 ${aiData.name}\n📈 信心：${aiData.confidence}%\n💡 原因：${aiData.reason}\n\n是否數量 +1 ？`)) { const idx = inventory.findIndex(i => i.sku === aiData.sku); if(idx !== -1) { inventory[idx].actualQty++; saveAndRender(); closeModal('aiModal'); toggleAICamera(); setTimeout(() => { const row = document.getElementById(`row-${idx}`); if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('highlight-card'); setTimeout(()=>row.classList.remove('highlight-card'), 1500); } }, 300); } }
             } else if (mode === 'add') {
-                document.getElementById('newName').value = aiData.name;
-                const catSelect = document.getElementById('catSelect'); const customCatInput = document.getElementById('customCat');
+                document.getElementById('newName').value = aiData.name; const catSelect = document.getElementById('catSelect'); const customCatInput = document.getElementById('customCat');
                 if (aiData.isCustomCategory) { catSelect.value = "custom"; customCatInput.style.display = "block"; customCatInput.value = aiData.category; } else { catSelect.value = aiData.category; customCatInput.style.display = "none"; }
-                const unitSelect = document.getElementById('unitSelect'); let unitFound = false;
-                for(let i=0; i<unitSelect.options.length; i++) { if(unitSelect.options[i].value === aiData.unit) { unitSelect.selectedIndex = i; unitFound = true; break; } }
+                const unitSelect = document.getElementById('unitSelect'); let unitFound = false; for(let i=0; i<unitSelect.options.length; i++) { if(unitSelect.options[i].value === aiData.unit) { unitSelect.selectedIndex = i; unitFound = true; break; } }
                 if(!unitFound) unitSelect.value = "其他";
-
-                // 🌟 神級優化：將剛才拍的照片「再壓縮」並自動填入新增表單的圖片欄位
-                const thumbCanvas = document.createElement('canvas');
-                const MAX_WIDTH = 300; let scale = MAX_WIDTH / canvas.width; if (scale > 1) scale = 1;
-                thumbCanvas.width = canvas.width * scale; thumbCanvas.height = canvas.height * scale;
-                thumbCanvas.getContext('2d').drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+                const thumbCanvas = document.createElement('canvas'); const MAX_WIDTH = 300; let scale = MAX_WIDTH / canvas.width; if (scale > 1) scale = 1;
+                thumbCanvas.width = canvas.width * scale; thumbCanvas.height = canvas.height * scale; thumbCanvas.getContext('2d').drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
                 const thumbDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.6);
-                
-                document.getElementById('newImageData').value = thumbDataUrl;
-                document.getElementById('newPreview').src = thumbDataUrl;
-                document.getElementById('newPreview').style.display = 'block';
-
+                document.getElementById('newImageData').value = thumbDataUrl; document.getElementById('newPreview').src = thumbDataUrl; document.getElementById('newPreview').style.display = 'block';
                 closeModal('aiModal'); toggleAICamera(); openModal('addModal');
                 alert(`✅ AI 已填寫名稱與類別：\n${aiData.name}\n📸 並且已自動為您擷取產品圖片！\n請補齊單價後加入清單。`);
             }
@@ -568,8 +410,7 @@
     async function downloadFromCloud() {
         document.getElementById('syncStatus').innerText = "下載中...";
         try {
-            const noCacheUrl = GAS_URL + "?t=" + new Date().getTime();
-            const response = await fetch(noCacheUrl); const data = await response.json();
+            const noCacheUrl = GAS_URL + "?t=" + new Date().getTime(); const response = await fetch(noCacheUrl); const data = await response.json();
             if (data && data.length > 0) { inventory = data; ensureShortCodes(); lastCloudSnapshot = JSON.stringify(data); localStorage.setItem('cloud_snapshot', lastCloudSnapshot); saveAndRender(); document.getElementById('syncStatus').innerText = "✅ 下載成功 " + new Date().toLocaleTimeString().slice(0,5); } else { document.getElementById('syncStatus').innerText = "雲端無資料"; }
         } catch (error) { document.getElementById('syncStatus').innerText = "❌ 下載失敗"; alert("下載發生錯誤。"); }
     }
@@ -577,35 +418,26 @@
     async function uploadToCloud() {
         document.getElementById('syncStatus').innerText = "檢查衝突中...";
         try {
-            const checkUrl = GAS_URL + "?t=" + new Date().getTime();
-            const checkResp = await fetch(checkUrl); const latestCloudData = await checkResp.json();
+            const checkUrl = GAS_URL + "?t=" + new Date().getTime(); const checkResp = await fetch(checkUrl); const latestCloudData = await checkResp.json();
             if (lastCloudSnapshot && JSON.stringify(latestCloudData) !== lastCloudSnapshot) {
                 const force = confirm("⚠️ 衝突警告！⚠️\n\n在你盤點期間，雲端資料已改變。\n\n[確定]：強制用你的資料覆蓋雲端\n[取消]：中止上傳，請先匯出 Excel 備份。");
                 if (!force) { document.getElementById('syncStatus').innerText = "❌ 已取消 (防呆保護)"; return; }
             }
             document.getElementById('syncStatus').innerText = "上傳中...";
             const uploadResp = await fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(inventory) });
-            const result = await uploadResp.json();
-            if (result.status === "error") throw new Error(result.message);
+            const result = await uploadResp.json(); if (result.status === "error") throw new Error(result.message);
             lastCloudSnapshot = JSON.stringify(inventory); localStorage.setItem('cloud_snapshot', lastCloudSnapshot);
             document.getElementById('syncStatus').innerText = "✅ 已上傳 " + new Date().toLocaleTimeString().slice(0,5);
         } catch (error) { document.getElementById('syncStatus').innerText = "❌ 上傳失敗"; alert("上傳失敗：\n" + error.message); }
     }
 
     function exportToExcel() {
-        const now = new Date(); const timestamp = now.toLocaleString('zh-HK');
-        let csv = `\uFEFF"🏢 禮品資產盤點總表","匯出時間：${timestamp}"\n\n`;
-        csv += "項次,四碼代號,區域,分類,SKU,產品名稱,單位,單價,實盤數量,💰實盤總值\n";
-        let grandTotalValue = 0;
-        inventory.forEach((i, index) => {
-            const actualValue = i.price * i.actualQty; grandTotalValue += actualValue;
-            const safeName = i.name.replace(/"/g, '""');
-            csv += `${index + 1},"${i.shortCode}","${i.area}","${i.category}","=""${i.sku}""","${safeName}","${i.unit}",${i.price},${i.actualQty},${actualValue}\n`;
-        });
+        const now = new Date(); const timestamp = now.toLocaleString('zh-HK'); let csv = `\uFEFF"🏢 禮品資產盤點總表","匯出時間：${timestamp}"\n\n`;
+        csv += "項次,四碼代號,區域,分類,SKU,產品名稱,單位,單價,實盤數量,💰實盤總值\n"; let grandTotalValue = 0;
+        inventory.forEach((i, index) => { const actualValue = i.price * i.actualQty; grandTotalValue += actualValue; const safeName = i.name.replace(/"/g, '""'); csv += `${index + 1},"${i.shortCode}","${i.area}","${i.category}","=""${i.sku}""","${safeName}","${i.unit}",${i.price},${i.actualQty},${actualValue}\n`; });
         csv += `\n"📊 總計","","","","","","","","",${grandTotalValue}\n`;
         const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })); link.download = `禮品盤點報告_${now.toISOString().slice(0,10)}.csv`; link.click();
     }
-
     function confirmClear() { if(confirm("確定清空手機上的所有資料？")) { inventory=[]; localStorage.removeItem('cloud_snapshot'); saveAndRender(); } }
 
     renderList();
