@@ -360,7 +360,7 @@
     function processImage(event, previewId, dataId) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = function(e) { const img = new Image(); img.onload = function() { const MAX_WIDTH = 150; let scale = MAX_WIDTH / img.width; if (scale > 1) scale = 1; const canvas = document.createElement('canvas'); canvas.width = img.width * scale; canvas.height = img.height * scale; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height); const dataUrl = canvas.toDataURL('image/jpeg', 0.5); document.getElementById(dataId).value = dataUrl; const previewImg = document.getElementById(previewId); previewImg.src = dataUrl; previewImg.style.display = 'block'; }; img.src = e.target.result; }; reader.readAsDataURL(file); }
     function clearImagePreview(previewId, dataId) { document.getElementById(dataId).value = ''; document.getElementById(previewId).src = ''; document.getElementById(previewId).style.display = 'none'; }
     function viewImage(index) { const item = inventory[index]; const imgEl = document.getElementById('largeImageDisplay'); const msgEl = document.getElementById('noImageMsg'); if (item.image && item.image.startsWith('data:image')) { imgEl.src = item.image; imgEl.style.display = 'inline-block'; msgEl.style.display = 'none'; } else { imgEl.style.display = 'none'; msgEl.style.display = 'block'; } openModal('viewImageModal'); }
-    function generateShortCode() { const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; let code; while (true) { code = ''; for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length)); if (!inventory.some(item => item.shortCode === code)) break; } return code; }
+    function generateShortCode() { const chars = '23456789ABCDFGHJKLMNPQRSTUVWXYZ'; let code; while (true) { code = ''; for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length)); if (!inventory.some(item => item.shortCode === code)) break; } return code; }
     
     // 確保所有項目都有短碼與預設列印狀態
     function ensureDataIntegrity() { 
@@ -568,3 +568,4 @@
 </script>
 </body>
 </html>
+
