@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>禮品盤點 Pro v6.2</title>
+    <title>Moon jai _v6.0</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { 
@@ -15,7 +14,6 @@
             --safe-top: env(safe-area-inset-top, 20px);
             --safe-bottom: env(safe-area-inset-bottom, 20px);
         }
-
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; background-color: var(--ios-bg); color: var(--ios-text); margin: 0; padding: 0; padding-bottom: calc(100px + var(--safe-bottom)); }
 
@@ -24,9 +22,7 @@
         .dashboard { display: flex; justify-content: space-between; align-items: center; background: var(--ios-card); border-radius: 14px; padding: 12px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
         .total-box { display: flex; flex-direction: column; }
         .total-val { font-size: 22px; font-weight: 700; color: var(--ios-blue); }
-        
         .sync-btn { background: var(--ios-light-gray); color: var(--ios-text); border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 16px; cursor: pointer; }
-
         .container { padding: 16px; }
 
         .view-section { display: none; animation: fadeIn 0.3s ease; }
@@ -97,7 +93,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">盤點助手 Pro 6.2</h1>
+    <h1 class="header-title">Moon jai _v6.0</h1>
     <div class="dashboard">
         <div class="total-box"><span style="font-size: 12px; color: var(--ios-gray); font-weight: 600;">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
         <div style="display:flex; gap:10px;">
@@ -123,7 +119,7 @@
             </div>
             <input type="file" id="cameraInput" style="display:none;" accept="image/*" capture="environment" onchange="handlePhoto(event)">
             <img id="previewImage" src="" style="width:100%; max-height:200px; object-fit:contain; margin-top:15px; display:none; border-radius:12px;">
-            <input type="hidden" id="tempImageData">
+            <input type="hidden" id="tempImageData"> 
         </div>
 
         <div class="form-row">
@@ -198,6 +194,7 @@
 <div id="printArea"></div>
 
 <script>
+    // ⚠️ 記得替換成你最新發布的 GAS 網址！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
     
     let inventory = [];
@@ -248,6 +245,7 @@
         document.getElementById('cameraInput').click();
     }
 
+    // 🌟 核心升級：極限縮圖引擎 + 強效 AI 解析防護
     async function handlePhoto(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -256,10 +254,14 @@
         const ctx = canvas.getContext('2d');
         const img = new Image();
         img.onload = async function() {
-            const maxW = 500; let scale = maxW / img.width; if(scale>1) scale=1;
+            // 🌟 極限壓縮：將寬度強制縮小到 250px，確保 Base64 絕對小於 5 萬字元！
+            const maxW = 250; 
+            let scale = maxW / img.width; if(scale>1) scale=1;
             canvas.width = img.width * scale; canvas.height = img.height * scale;
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const b64 = canvas.toDataURL('image/jpeg', 0.6);
+            
+            // 轉出極限壓縮的 Base64
+            const b64 = canvas.toDataURL('image/jpeg', 0.5);
             
             document.getElementById('tempImageData').value = b64;
             document.getElementById('previewImage').src = b64;
@@ -273,22 +275,26 @@
                         headers: { "Content-Type": "text/plain;charset=utf-8" },
                         body: JSON.stringify({
                             action: 'gemini', 
-                            prompt: '香港建檔助手。自動填表，估算單價(HKD)。嚴格 JSON 回覆：{"name":"名稱","category":"分類","unit":"件/箱/樽/套","sku":"條碼","price":數字}，分類包含HAMPER。', 
+                            prompt: '香港建檔助手。請自動填表，估算單價(HKD)。只輸出純JSON格式，不要有任何其他文字或Markdown標籤。嚴格格式：{"name":"名稱","category":"分類","unit":"件/箱/樽/套","sku":"條碼","price":數字}，分類包含HAMPER。', 
                             image: b64.split(',')[1]
                         })
                     });
                     
                     const rawData = await res.json();
-                    // 🌟 修復：解開 Gemini 的巢狀結構
+                    if(rawData.error) throw new Error(rawData.error.message);
+                    
                     const rawText = rawData.candidates[0].content.parts[0].text;
-                    const cleanText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-                    const aiData = JSON.parse(cleanText);
+                    
+                    // 🌟 最強 JSON 擷取術：用 Regex 直接把 { } 裡面的東西挖出來，無視 AI 廢話！
+                    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) throw new Error("AI未回傳有效的 JSON 格式");
+                    
+                    const aiData = JSON.parse(jsonMatch[0]);
                     
                     if(aiData.name) document.getElementById('add-name').value = aiData.name;
                     if(aiData.sku && aiData.sku !== "N/A") document.getElementById('add-sku').value = aiData.sku;
                     if(aiData.price) document.getElementById('add-price').value = aiData.price;
                     
-                    // 嘗試選中對應分類
                     if(aiData.category) {
                         const catSelect = document.getElementById('add-cat');
                         for(let i=0; i<catSelect.options.length; i++) {
@@ -301,7 +307,7 @@
                     alert("✅ AI 解析完成！請確認表單資料，修改無誤後再點擊『儲存』。");
                 } catch(e) { 
                     console.error(e);
-                    alert("AI 解析失敗，請檢查照片清晰度。"); 
+                    alert("AI 解析失敗，請再拍一次。\n錯誤訊息：" + e.message); 
                 }
                 hideLoading();
             }
@@ -315,27 +321,8 @@
         
         showLoading("🚀 正在儲存至雲端...");
         
-        let imgUrl = "";
-        const b64 = document.getElementById('tempImageData').value;
-        
-        if (b64) {
-            try {
-                const res = await fetch(GAS_URL, {
-                    method: 'POST',
-                    headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({action: 'upload_image', base64Data: b64.split(',')[1], fileName: "IMG_" + Date.now() + ".jpg"})
-                });
-                const resData = await res.json();
-                if (resData.status === "success") {
-                    imgUrl = resData.imageUrl;
-                } else {
-                    alert("⚠️ 圖片上傳失敗！原因：" + resData.message + "\n\n💡 提示：可能是您的 Google 企業帳號禁止了「公開分享連結」。照片無法儲存，但文字資料仍會為您保留。");
-                }
-            } catch(e) { 
-                alert("⚠️ 網路錯誤，圖片無法儲存，僅儲存文字資料。"); 
-            }
-        }
-
+        // 🌟 這次不傳 Drive 了，直接把這個被極限壓縮過的 Base64 塞進資料庫裡！
+        const compressedBase64 = document.getElementById('tempImageData').value;
         const priceVal = parseFloat(document.getElementById('add-price').value);
         
         inventory.unshift({ 
@@ -348,7 +335,7 @@
             price: isNaN(priceVal) ? 0 : priceVal,
             bookQty: 0,
             actualQty: parseInt(document.getElementById('add-qty').value) || 0,
-            image: imgUrl,
+            image: compressedBase64, // 存入 Base64 縮圖！
             isPrinted: false
         });
 
@@ -391,7 +378,12 @@
                     : `<div class="price-container"><span>$${item.price}</span></div>`;
                 
                 const rowClass = isMissingPrice ? "missing-price-row" : "";
-                const imgHtml = item.image ? `<a href="${item.image}" target="_blank" style="font-size:24px; text-decoration:none;" title="查看圖片">🖼️</a>` : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
+                
+                // 🌟 因為現在存的是 Base64，我們可以直接把 src 設為 item.image，點擊後彈出新視窗顯示大圖
+                const imgHtml = item.image 
+                    ? `<img src="${item.image}" onclick="window.open('${item.image}', '_blank')" style="width:40px; height:40px; object-fit:cover; border-radius:6px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2);" title="點擊看大圖">` 
+                    : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
+                
                 const printBtn = item.isPrinted ? '✅' : '🖨️';
 
                 dBody.innerHTML += `
