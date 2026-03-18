@@ -193,6 +193,14 @@
 <div id="loadingOverlay"><div class="spinner"></div><div id="loadingText">處理中...</div></div>
 <div id="printArea"></div>
 
+<div id="viewImageModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:200; display:none; justify-content:center; align-items:center; flex-direction:column; backdrop-filter:blur(5px);">
+    <div style="width:90%; max-width:500px; background:var(--ios-card); border-radius:16px; padding:20px; text-align:center; position:relative; box-shadow: 0 10px 25px rgba(0,0,0,0.5); animation: fadeIn 0.2s ease;">
+        <button onclick="document.getElementById('viewImageModal').style.display='none'" style="position:absolute; top:10px; right:10px; background:var(--ios-light-gray); color:var(--ios-text); border:none; border-radius:50%; width:30px; height:30px; font-weight:bold; cursor:pointer; font-size:14px;">✕</button>
+        <h3 style="margin-top:0; margin-bottom:15px; color:var(--ios-text);">產品圖片</h3>
+        <img id="largeImageDisplay" src="" style="width:100%; border-radius:12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+    </div>
+</div>
+
 <script>
     // ⚠️ 記得替換成你最新發布的 GAS 網址！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
@@ -386,8 +394,9 @@
                 const rowClass = isMissingPrice ? "missing-price-row" : "";
                 
                 // 🌟 因為現在存的是 Base64，我們可以直接把 src 設為 item.image，點擊後彈出新視窗顯示大圖
+                // 🌟 改用 viewImage(index) 呼叫彈出視窗，取代會被擋下的 window.open
                 const imgHtml = item.image 
-                    ? `<img src="${item.image}" onclick="window.open('${item.image}', '_blank')" style="width:40px; height:40px; object-fit:cover; border-radius:6px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2);" title="點擊看大圖">` 
+                    ? `<img src="${item.image}" onclick="viewImage(${index})" style="width:40px; height:40px; object-fit:cover; border-radius:6px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2);" title="點擊看大圖">` 
                     : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
                 
                 const printBtn = item.isPrinted ? '✅' : '🖨️';
@@ -452,6 +461,14 @@
             inventory[index].isPrinted = false; 
             renderData();
             autoSaveToCloud();
+        }
+    }
+   // ==================== 圖片彈出視窗控制 ====================
+    function viewImage(index) {
+        const item = inventory[index];
+        if (item.image) {
+            document.getElementById('largeImageDisplay').src = item.image;
+            document.getElementById('viewImageModal').style.display = 'flex';
         }
     }
 
