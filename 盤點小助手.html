@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>禮品盤點 Pro v6.0</title>
+    <title>禮品盤點 Moon v6.1</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { 
@@ -30,7 +30,7 @@
 
         .container { padding: 16px; }
 
-        /* RWD 視圖切換 (App 化關鍵) */
+        /* RWD 視圖切換 */
         .view-section { display: none; animation: fadeIn 0.3s ease; }
         .view-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
@@ -42,13 +42,17 @@
         .premium-table td { padding: 16px; border-bottom: 1px solid #E5E5EA; vertical-align: middle; }
         .premium-table tr:hover { background: #F9F9FB; }
         
-        /* 🚨 缺價特別提醒 (視覺強化) */
+        /* 🚨 缺價特別提醒 (視覺強化防走位) */
         .missing-price-row { background-color: #FFF5F5 !important; }
         .missing-price-row td:first-child { border-left: 4px solid var(--ios-red); }
-        .alert-badge { background: var(--ios-red); color: white; padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; margin-left: 8px; vertical-align: middle;}
+        .price-container { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; white-space: nowrap; }
+        .alert-badge { background: #FFEBEB; color: var(--ios-red); border: 1px solid #FFD6D6; padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 800; display: inline-block;}
 
-        /* 手機版卡片 */
+        /* 手機版卡片與標籤強化 */
         .ios-card { background: var(--ios-card); border-radius: 16px; padding: 16px; box-shadow: 0 1px 5px rgba(0,0,0,0.05); margin-bottom:12px; }
+        .tag-group { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+        .tag-area { background: #E5F0FF; color: #007AFF; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+        .tag-cat { background: #E8F5E9; color: #34C759; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
 
         /* 表單與按鈕 */
         .form-group { margin-bottom: 12px; }
@@ -64,6 +68,8 @@
         .stepper { display: flex; align-items: center; background: var(--ios-light-gray); border-radius: 8px; width:fit-content;}
         .stepper-btn { background: none; border: none; font-size: 20px; color: var(--ios-blue); width: 36px; height: 32px; cursor: pointer; }
         .qty-input { width: 44px; height: 32px; border: none; background: none; text-align: center; font-size: 16px; font-weight: 600; padding: 0; }
+        .icon-btn-action { background: none; border: none; font-size: 20px; cursor: pointer; padding: 5px; margin: 0 5px; transition: transform 0.1s; }
+        .icon-btn-action:active { transform: scale(0.8); }
 
         /* 底部導覽列 (僅手機顯示) */
         .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-top: 0.5px solid rgba(0,0,0,0.1); padding: 10px 16px calc(10px + var(--safe-bottom)); display: flex; justify-content: space-around; z-index: 100; }
@@ -73,7 +79,7 @@
 
         @media (min-width: 1024px) {
             body { max-width: 1200px; margin: auto; }
-            .bottom-nav { display: none; } /* 電腦隱藏底部導覽 */
+            .bottom-nav { display: none; }
             .desktop-nav { display: flex; gap: 15px; margin-bottom: 20px; }
             .desktop-nav-btn { padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; border:none; background:var(--ios-light-gray); color:var(--ios-gray);}
             .desktop-nav-btn.active { background:var(--ios-blue); color:white; }
@@ -100,7 +106,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">盤點助手 Pro 6.0</h1>
+    <h1 class="header-title">禮品盤點 Moon v6.1</h1>
     <div class="dashboard">
         <div class="total-box"><span style="font-size: 12px; color: var(--ios-gray); font-weight: 600;">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
         <div style="display:flex; gap:10px;">
@@ -160,7 +166,7 @@
         
         <div class="premium-table-wrapper desktop-only-table">
             <table class="premium-table">
-                <thead><tr><th>短碼</th><th>圖片</th><th>名稱 / SKU</th><th>區域 / 分類</th><th>單價</th><th>數量</th><th>操作</th></tr></thead>
+                <thead><tr><th>短碼</th><th>圖片</th><th>名稱 / SKU</th><th>區域 / 分類</th><th>單價</th><th>數量</th><th style="text-align:center;">操作</th></tr></thead>
                 <tbody id="desktopTableBody"></tbody>
             </table>
         </div>
@@ -187,14 +193,14 @@
 <div id="printArea"></div>
 
 <script>
-    // ⚠️ 請替換為你最新的 Google Apps Script 網址
+    // ⚠️ 請確認這是你最新部署的 Google Apps Script 網址
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
     
     let inventory = [];
     let skuScanner = null;
     let currentPhotoMode = 'normal';
 
-    // 🌟 1. 智慧判斷設備，自動切換首頁
+    // 1. 智慧判斷設備，自動切換首頁
     window.onload = async function() {
         if (window.innerWidth >= 1024) { switchView('view-table'); } 
         else { switchView('view-add'); }
@@ -204,7 +210,6 @@
     function switchView(viewId) {
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
         document.getElementById(viewId).classList.add('active');
-        // 更新按鈕樣式
         document.querySelectorAll('.desktop-nav-btn, .nav-btn').forEach(el => el.classList.remove('active'));
         if(document.getElementById(`d-nav-${viewId.split('-')[1]}`)) document.getElementById(`d-nav-${viewId.split('-')[1]}`).classList.add('active');
         if(document.getElementById(`m-nav-${viewId.split('-')[1]}`)) document.getElementById(`m-nav-${viewId.split('-')[1]}`).classList.add('active');
@@ -242,7 +247,6 @@
         const file = event.target.files[0];
         if (!file) return;
         
-        // 壓縮圖片轉 Base64
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const img = new Image();
@@ -269,12 +273,11 @@
                     });
                     const aiData = await res.json();
                     
-                    // 🌟 AI 填表，等待人類審批
                     if(aiData.name) document.getElementById('add-name').value = aiData.name;
                     if(aiData.sku && aiData.sku !== "N/A") document.getElementById('add-sku').value = aiData.sku;
                     if(aiData.price) document.getElementById('add-price').value = aiData.price;
                     
-                    alert("✅ AI 解析完成！請確認表單資料，修改無誤後再點擊『儲存並加入總表』。");
+                    alert("✅ AI 解析完成！請確認表單資料無誤後點擊『儲存』。");
                 } catch(e) { alert("AI 解析失敗。"); }
                 hideLoading();
             }
@@ -291,19 +294,28 @@
         
         let imgUrl = "";
         const b64 = document.getElementById('tempImageData').value;
+        
+        // 🚨 圖片上傳防呆處理
         if (b64) {
             try {
                 const res = await fetch(GAS_URL, {
                     method: 'POST',
                     body: JSON.stringify({action: 'upload_image', base64Data: b64.split(',')[1], fileName: "IMG_" + Date.now() + ".jpg"})
                 });
-                imgUrl = (await res.json()).imageUrl;
-            } catch(e) { console.error("Img upload fail"); }
+                const resData = await res.json();
+                if (resData.status === "success") {
+                    imgUrl = resData.imageUrl;
+                } else {
+                    alert("⚠️ 照片儲存失敗！\n原因：Google Drive 拒絕接收。\n請檢查 Google Script 裡的 FOLDER_ID 是否正確，以及資料夾權限是否設為「任何人皆可檢視」。");
+                }
+            } catch(e) { 
+                alert("⚠️ 照片上傳超時或網路錯誤，目前僅儲存文字資料。"); 
+            }
         }
 
         const priceVal = parseFloat(document.getElementById('add-price').value);
         
-        inventory.push({
+        inventory.unshift({ // 新增的放在最上面
             shortCode: Math.random().toString(36).substring(2,6).toUpperCase(),
             area: document.getElementById('add-area').value || "未指定",
             category: document.getElementById('add-cat').value,
@@ -325,7 +337,18 @@
         
         hideLoading();
         alert("✅ 儲存成功！");
-        if(window.innerWidth >= 1024) switchView('view-table'); // 電腦自動跳回總表
+        if(window.innerWidth >= 1024) switchView('view-table'); 
+        else renderData(); // 手機版在背景更新資料
+    }
+
+    // ==================== 刪除功能 ====================
+    function deleteProduct(index) {
+        const itemName = inventory[index].name;
+        if(confirm(`⚠️ 確定要永久刪除「${itemName}」嗎？\n刪除後將同步從雲端移除！`)) {
+            inventory.splice(index, 1);
+            renderData();
+            autoSaveToCloud();
+        }
     }
 
     // ==================== 渲染資料 (高級表格與手機卡片) ====================
@@ -342,21 +365,25 @@
 
             if (Object.values(item).some(val => String(val).toLowerCase().includes(query))) {
                 
-                // 🚨 缺價警示邏輯
                 const isMissingPrice = !item.price || item.price === 0;
-                const priceText = isMissingPrice ? `$0 <span class="alert-badge">需補單價</span>` : `$${item.price}`;
+                
+                // 🚨 改良版價格顯示 (使用 Flexbox 防走位)
+                const priceText = isMissingPrice 
+                    ? `<div class="price-container"><span style="color:var(--ios-red);font-weight:bold;">$0</span> <span class="alert-badge">⚠️ 需補單價</span></div>` 
+                    : `<div class="price-container"><span>$${item.price}</span></div>`;
+                
                 const rowClass = isMissingPrice ? "missing-price-row" : "";
-                const imgHtml = item.image ? `<a href="${item.image}" target="_blank" style="font-size:20px; text-decoration:none;">🖼️</a>` : `<span style="color:#ccc;">無圖</span>`;
+                const imgHtml = item.image ? `<a href="${item.image}" target="_blank" style="font-size:24px; text-decoration:none;" title="查看圖片">🖼️</a>` : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
                 const printBtn = item.isPrinted ? '✅' : '🖨️';
 
                 // 💻 電腦版高級表格
                 dBody.innerHTML += `
                     <tr class="${rowClass}">
                         <td><span style="font-family:monospace; font-weight:bold; background:var(--ios-light-gray); padding:4px 8px; border-radius:6px;">${item.shortCode}</span></td>
-                        <td>${imgHtml}</td>
-                        <td><b>${item.name}</b><br><span style="font-size:12px; color:var(--ios-gray);">SKU: ${item.sku}</span></td>
+                        <td style="text-align:center;">${imgHtml}</td>
+                        <td><b style="font-size:15px;">${item.name}</b><br><span style="font-size:12px; color:var(--ios-gray);">SKU: ${item.sku}</span></td>
                         <td>${item.area} <span style="color:var(--ios-gray);">/ ${item.category}</span></td>
-                        <td style="${isMissingPrice?'color:var(--ios-red);font-weight:bold;':''}">${priceText}</td>
+                        <td>${priceText}</td>
                         <td>
                             <div class="stepper">
                                 <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
@@ -364,25 +391,42 @@
                                 <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
                             </div>
                         </td>
-                        <td><button onclick="printSingle(${index})" style="background:none; border:none; cursor:pointer; font-size:18px;">${printBtn}</button></td>
+                        <td style="text-align:center; white-space:nowrap;">
+                            <button class="icon-btn-action" style="color:var(--ios-text);" onclick="printSingle(${index})" title="列印封條">${printBtn}</button>
+                            <button class="icon-btn-action" style="color:var(--ios-red);" onclick="deleteProduct(${index})" title="刪除此項">🗑️</button>
+                        </td>
                     </tr>
                 `;
 
-                // 📱 手機版直觀卡片
+                // 📱 手機版直觀卡片 (強化區域/分類標籤)
                 mBody.innerHTML += `
-                    <div class="ios-card ${rowClass ? 'missing-price-row' : ''}" style="border: ${isMissingPrice ? '1px solid var(--ios-red)' : 'none'}">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                            <span style="font-family:monospace; font-weight:bold;">${item.shortCode}</span>
-                            <span style="font-size:12px; color:var(--ios-gray);">${item.area} / ${item.category}</span>
+                    <div class="ios-card ${rowClass ? 'missing-price-row' : ''}" style="border: ${isMissingPrice ? '1px solid #FFD6D6' : 'none'}">
+                        
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+                            <div class="tag-group">
+                                <span class="tag-area">📍 ${item.area || '未分區'}</span>
+                                <span class="tag-cat">🏷️ ${item.category}</span>
+                            </div>
+                            <span style="font-family:monospace; font-weight:bold; font-size:14px; background:var(--ios-light-gray); padding:2px 6px; border-radius:4px;">${item.shortCode}</span>
                         </div>
-                        <h3 style="margin:0 0 5px 0; font-size:16px;">${item.name}</h3>
-                        <div style="font-size:12px; color:var(--ios-gray); margin-bottom:10px;">SKU: ${item.sku}</div>
+                        
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div style="${isMissingPrice?'color:var(--ios-red);font-weight:bold;':''}">${priceText}</div>
-                            <div class="stepper">
-                                <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
-                                <div style="font-weight:bold; padding:0 10px;">${item.actualQty}</div>
-                                <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
+                            <h3 style="margin:0 0 5px 0; font-size:16px; width:80%; line-height:1.4;">${item.name}</h3>
+                            ${imgHtml}
+                        </div>
+
+                        <div style="font-size:12px; color:var(--ios-gray); margin-bottom:12px;">SKU: ${item.sku}</div>
+                        
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            ${priceText}
+                            
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div class="stepper">
+                                    <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
+                                    <div style="font-weight:bold; padding:0 10px;">${item.actualQty}</div>
+                                    <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
+                                </div>
+                                <button class="icon-btn-action" style="color:var(--ios-red); margin:0;" onclick="deleteProduct(${index})" title="刪除">🗑️</button>
                             </div>
                         </div>
                     </div>
@@ -396,7 +440,7 @@
         if(navigator.vibrate) navigator.vibrate(50);
         if(inventory[index].actualQty + amt >= 0) {
             inventory[index].actualQty += amt;
-            inventory[index].isPrinted = false; // 重置列印狀態
+            inventory[index].isPrinted = false; 
             renderData();
             autoSaveToCloud();
         }
@@ -460,7 +504,6 @@
         reader.onload = function(e) {
             const lines = e.target.result.split('\n');
             let newInv = [];
-            // 跳過前兩行，從第三行(i=3)開始讀資料
             for(let i=3; i<lines.length; i++) {
                 if(!lines[i].trim() || lines[i].includes('📊 總計')) continue;
                 const cols = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g).map(s => s.replace(/^"|"$/g, '').replace(/""/g, '"'));
