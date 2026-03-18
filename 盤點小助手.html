@@ -93,7 +93,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">Moon jai _v6.0</h1>
+    <h1 class="header-title">Moon jai _v6.1</h1>
     <div class="dashboard">
         <div class="total-box"><span style="font-size: 12px; color: var(--ios-gray); font-weight: 600;">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
         <div style="display:flex; gap:10px;">
@@ -321,10 +321,12 @@
         
         showLoading("🚀 正在儲存至雲端...");
         
-        // 🌟 這次不傳 Drive 了，直接把這個被極限壓縮過的 Base64 塞進資料庫裡！
+        // 🌟 核心修正：我們不需要再呼叫 Google Drive 了！
+        // 直接把壓縮好的圖片編碼 (Base64) 拿來存進資料庫即可
         const compressedBase64 = document.getElementById('tempImageData').value;
         const priceVal = parseFloat(document.getElementById('add-price').value);
         
+        // 將新資料加入本地陣列的最上方
         inventory.unshift({ 
             shortCode: Math.random().toString(36).substring(2,6).toUpperCase(),
             area: document.getElementById('add-area').value || "未指定",
@@ -335,17 +337,21 @@
             price: isNaN(priceVal) ? 0 : priceVal,
             bookQty: 0,
             actualQty: parseInt(document.getElementById('add-qty').value) || 0,
-            image: compressedBase64, // 存入 Base64 縮圖！
+            image: compressedBase64, // 📸 圖片直接以文字編碼存在這裡！
             isPrinted: false
         });
 
+        // 呼叫全自動同步引擎 (save_data)
         await autoSaveToCloud();
         
+        // 清空表單，準備下一次盤點
         ['add-name','add-sku','add-price','add-qty','tempImageData'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('previewImage').style.display = 'none';
         
         hideLoading();
         alert("✅ 儲存成功！");
+        
+        // 畫面跳轉邏輯
         if(window.innerWidth >= 1024) switchView('view-table'); 
         else renderData();
     }
