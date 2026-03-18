@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon jai _v6.0</title>
+    <title>Moon Stocktake v7.1 </title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { 
@@ -93,7 +93,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">Moon jai _v6.2</h1>
+    <h1 class="header-title">Moon Stocktake v7.1</h1>
     <div class="dashboard">
         <div class="total-box"><span style="font-size: 12px; color: var(--ios-gray); font-weight: 600;">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
         <div style="display:flex; gap:10px;">
@@ -201,6 +201,41 @@
     </div>
 </div>
 
+<div id="editModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:300; display:none; justify-content:center; align-items:center; flex-direction:column; backdrop-filter:blur(5px);">
+    <div style="width:90%; max-width:500px; background:var(--ios-card); border-radius:16px; padding:20px; text-align:left; position:relative; box-shadow: 0 10px 25px rgba(0,0,0,0.5); animation: fadeIn 0.2s ease;">
+        <button onclick="document.getElementById('editModal').style.display='none'" style="position:absolute; top:10px; right:10px; background:var(--ios-light-gray); color:var(--ios-text); border:none; border-radius:50%; width:30px; height:30px; font-weight:bold; cursor:pointer; font-size:14px;">✕</button>
+        <h3 style="margin-top:0; margin-bottom:15px; color:var(--ios-text); text-align:center;">修改產品資料</h3>
+        
+        <input type="hidden" id="edit-index">
+        
+        <div class="form-group"><label class="form-label">產品名稱</label><input type="text" id="edit-name" class="ios-input"></div>
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;"><label class="form-label">單價 ($)</label><input type="number" id="edit-price" class="ios-input" inputmode="decimal"></div>
+            <div class="form-group" style="flex: 1;"><label class="form-label">SKU</label><input type="text" id="edit-sku" class="ios-input"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;"><label class="form-label">區域</label><input type="text" id="edit-area" class="ios-input"></div>
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">分類</label>
+                <select id="edit-cat" class="ios-select">
+                    <option value="HAMPER">HAMPER</option>
+                    <option value="HAMPER類(cheap餅)">HAMPER(cheap餅)</option>
+                    <option value="HAMPER類(朱古力,餅乾)">HAMPER(朱古力)</option>
+                    <option value="BB野">BB野</option>
+                    <option value="籃">籃</option>
+                    <option value="ESG">ESG</option>
+                    <option value="酒">酒</option>
+                    <option value="果汁">果汁</option>
+                    <option value="永生花">永生花</option>
+                    <option value="其他">其他</option>
+                </select>
+            </div>
+        </div>
+        
+        <button class="action-btn btn-primary" onclick="saveEditProduct()">💾 儲存修改</button>
+    </div>
+</div>
+
 <script>
     // ⚠️ 記得替換成你最新發布的 GAS 網址！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
@@ -253,7 +288,6 @@
         document.getElementById('cameraInput').click();
     }
 
-    // 🌟 核心升級：極限縮圖引擎 + 強效 AI 解析防護
     async function handlePhoto(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -262,13 +296,11 @@
         const ctx = canvas.getContext('2d');
         const img = new Image();
         img.onload = async function() {
-            // 🌟 極限壓縮：將寬度強制縮小到 250px，確保 Base64 絕對小於 5 萬字元！
             const maxW = 250; 
             let scale = maxW / img.width; if(scale>1) scale=1;
             canvas.width = img.width * scale; canvas.height = img.height * scale;
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             
-            // 轉出極限壓縮的 Base64
             const b64 = canvas.toDataURL('image/jpeg', 0.5);
             
             document.getElementById('tempImageData').value = b64;
@@ -292,8 +324,6 @@
                     if(rawData.error) throw new Error(rawData.error.message);
                     
                     const rawText = rawData.candidates[0].content.parts[0].text;
-                    
-                    // 🌟 最強 JSON 擷取術：用 Regex 直接把 { } 裡面的東西挖出來，無視 AI 廢話！
                     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
                     if (!jsonMatch) throw new Error("AI未回傳有效的 JSON 格式");
                     
@@ -329,12 +359,9 @@
         
         showLoading("🚀 正在儲存至雲端...");
         
-        // 🌟 核心修正：我們不需要再呼叫 Google Drive 了！
-        // 直接把壓縮好的圖片編碼 (Base64) 拿來存進資料庫即可
         const compressedBase64 = document.getElementById('tempImageData').value;
         const priceVal = parseFloat(document.getElementById('add-price').value);
         
-        // 將新資料加入本地陣列的最上方
         inventory.unshift({ 
             shortCode: Math.random().toString(36).substring(2,6).toUpperCase(),
             area: document.getElementById('add-area').value || "未指定",
@@ -345,21 +372,17 @@
             price: isNaN(priceVal) ? 0 : priceVal,
             bookQty: 0,
             actualQty: parseInt(document.getElementById('add-qty').value) || 0,
-            image: compressedBase64, // 📸 圖片直接以文字編碼存在這裡！
+            image: compressedBase64,
             isPrinted: false
         });
 
-        // 呼叫全自動同步引擎 (save_data)
         await autoSaveToCloud();
         
-        // 清空表單，準備下一次盤點
         ['add-name','add-sku','add-price','add-qty','tempImageData'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('previewImage').style.display = 'none';
         
         hideLoading();
         alert("✅ 儲存成功！");
-        
-        // 畫面跳轉邏輯
         if(window.innerWidth >= 1024) switchView('view-table'); 
         else renderData();
     }
@@ -371,6 +394,60 @@
             renderData();
             autoSaveToCloud();
         }
+    }
+
+    // ==================== 圖片彈出視窗控制 ====================
+    function viewImage(index) {
+        const item = inventory[index];
+        if (item.image) {
+            document.getElementById('largeImageDisplay').src = item.image;
+            document.getElementById('viewImageModal').style.display = 'flex';
+        }
+    }
+
+    // ==================== 編輯功能控制 ====================
+    function openEditModal(index) {
+        const item = inventory[index];
+        document.getElementById('edit-index').value = index;
+        document.getElementById('edit-name').value = item.name || '';
+        document.getElementById('edit-price').value = item.price || '';
+        document.getElementById('edit-sku').value = item.sku || '';
+        document.getElementById('edit-area').value = item.area || '';
+        
+        // 嘗試選中對應分類
+        const catSelect = document.getElementById('edit-cat');
+        let found = false;
+        for(let i=0; i<catSelect.options.length; i++) {
+            if(catSelect.options[i].value === item.category) {
+                catSelect.selectedIndex = i;
+                found = true; break;
+            }
+        }
+        if(!found) catSelect.selectedIndex = 9; // 預設「其他」
+        
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    async function saveEditProduct() {
+        const index = document.getElementById('edit-index').value;
+        const newName = document.getElementById('edit-name').value;
+        const newPrice = parseFloat(document.getElementById('edit-price').value);
+        
+        if (!newName) return alert("產品名稱不可空白！");
+        
+        showLoading("🚀 正在儲存修改...");
+
+        inventory[index].name = newName;
+        inventory[index].price = isNaN(newPrice) ? 0 : newPrice;
+        inventory[index].sku = document.getElementById('edit-sku').value || "N/A";
+        inventory[index].area = document.getElementById('edit-area').value || "未指定";
+        inventory[index].category = document.getElementById('edit-cat').value;
+
+        document.getElementById('editModal').style.display = 'none';
+        
+        await autoSaveToCloud();
+        renderData();
+        hideLoading();
     }
 
     function renderData() {
@@ -393,8 +470,6 @@
                 
                 const rowClass = isMissingPrice ? "missing-price-row" : "";
                 
-                // 🌟 因為現在存的是 Base64，我們可以直接把 src 設為 item.image，點擊後彈出新視窗顯示大圖
-                // 🌟 改用 viewImage(index) 呼叫彈出視窗，取代會被擋下的 window.open
                 const imgHtml = item.image 
                     ? `<img src="${item.image}" onclick="viewImage(${index})" style="width:40px; height:40px; object-fit:cover; border-radius:6px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2);" title="點擊看大圖">` 
                     : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
@@ -416,6 +491,7 @@
                             </div>
                         </td>
                         <td style="text-align:center; white-space:nowrap;">
+                            <button class="icon-btn-action" style="color:var(--ios-blue);" onclick="openEditModal(${index})" title="編輯修改">✏️</button>
                             <button class="icon-btn-action" style="color:var(--ios-text);" onclick="printSingle(${index})" title="列印封條">${printBtn}</button>
                             <button class="icon-btn-action" style="color:var(--ios-red);" onclick="deleteProduct(${index})" title="刪除此項">🗑️</button>
                         </td>
@@ -444,6 +520,7 @@
                                     <div style="font-weight:bold; padding:0 10px;">${item.actualQty}</div>
                                     <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
                                 </div>
+                                <button class="icon-btn-action" style="color:var(--ios-blue); margin:0;" onclick="openEditModal(${index})" title="編輯">✏️</button>
                                 <button class="icon-btn-action" style="color:var(--ios-red); margin:0;" onclick="deleteProduct(${index})" title="刪除">🗑️</button>
                             </div>
                         </div>
@@ -461,14 +538,6 @@
             inventory[index].isPrinted = false; 
             renderData();
             autoSaveToCloud();
-        }
-    }
-   // ==================== 圖片彈出視窗控制 ====================
-    function viewImage(index) {
-        const item = inventory[index];
-        if (item.image) {
-            document.getElementById('largeImageDisplay').src = item.image;
-            document.getElementById('viewImageModal').style.display = 'flex';
         }
     }
 
