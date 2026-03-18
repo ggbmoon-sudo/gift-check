@@ -1,488 +1,619 @@
-import streamlit as st
-import pandas as pd
-import requests
-import base64
-import uuid
-import json
-from io import BytesIO
-from PIL import Image
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>禮品盤點 Pro v7.1 (編輯功能版)</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root { 
+            --ios-bg: #F2F2F7; --ios-card: #FFFFFF; --ios-blue: #007AFF; 
+            --ios-green: #34C759; --ios-purple: #AF52DE; --ios-red: #FF3B30;
+            --ios-orange: #FF9500; --ios-text: #1C1C1E; --ios-gray: #8E8E93; --ios-light-gray: #E5E5EA;
+            --safe-top: env(safe-area-inset-top, 20px);
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; background-color: var(--ios-bg); color: var(--ios-text); margin: 0; padding: 0; padding-bottom: calc(100px + var(--safe-bottom)); }
 
-# 嘗試載入條碼辨識庫
-try:
-    from pyzbar.pyzbar import decode
-except ImportError:
-    decode = None
+        .sticky-header { position: sticky; top: 0; z-index: 100; background: rgba(242, 242, 247, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: calc(10px + var(--safe-top)) 16px 10px; border-bottom: 0.5px solid rgba(0,0,0,0.1); }
+        .header-title { font-size: 28px; font-weight: 700; margin: 0 0 10px 0; letter-spacing: -0.5px; }
+        .dashboard { display: flex; justify-content: space-between; align-items: center; background: var(--ios-card); border-radius: 14px; padding: 12px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .total-box { display: flex; flex-direction: column; }
+        .total-val { font-size: 22px; font-weight: 700; color: var(--ios-blue); }
+        .sync-btn { background: var(--ios-light-gray); color: var(--ios-text); border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 16px; cursor: pointer; }
+        .container { padding: 16px; }
 
-# =========================================
-# ⚙️ 系統設定與 API
-# =========================================
-GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec"
+        .view-section { display: none; animation: fadeIn 0.3s ease; }
+        .view-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-st.set_page_config(page_title="禮品盤點 Pro", page_icon="📦", layout="wide", initial_sidebar_state="collapsed")
-
-# =========================================
-# 🎨 頂級 UI/UX CSS 注入 (專為 iPhone 16 Pro 與電腦版優化)
-# =========================================
-st.markdown("""
-<style>
-    /* 引入蘋果風格字體 */
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans TC", sans-serif;
-    }
-    
-    /* 隱藏預設的 Streamlit 頂部和底部標記，營造 App 感 */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* 美化數據看板 (Metrics) */
-    div[data-testid="stMetricValue"] {
-        color: #007AFF; /* iOS 經典藍 */
-        font-weight: 800;
-        font-size: 2.2rem;
-    }
-    div[data-testid="stMetricLabel"] {
-        font-size: 1rem;
-        color: #8E8E93;
-        font-weight: 600;
-    }
-    
-    /* 按鈕圓角與陰影優化 */
-    .stButton>button {
-        border-radius: 14px;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
-    .stButton>button:active {
-        transform: scale(0.97);
-    }
-    
-    /* 主要按鈕使用 iOS 綠色或藍色漸層 */
-    button[kind="primary"] {
-        background: linear-gradient(135deg, #007AFF, #0056b3);
-        border: none;
-    }
-    
-    /* 卡片與擴展區塊美化 */
-    div[data-testid="stExpander"] {
-        background-color: #FFFFFF;
-        border-radius: 16px;
-        border: 1px solid #E5E5EA;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-    }
-    
-    /* 標籤頁 (Tabs) 現代化 */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 10px 10px 0 0;
-        padding: 10px 16px;
-        font-weight: 600;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #F2F2F7;
-        color: #1C1C1E;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# =========================================
-# 🔑 讀取隱藏金鑰
-# =========================================
-try:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-except:
-    API_KEY = ""
-
-# =========================================
-# 🛡️ 輔助與同步引擎
-# =========================================
-def safe_float(v):
-    try: return 0.0 if pd.isna(float(v)) else float(v)
-    except: return 0.0
-
-def safe_int(v):
-    try: return 0 if pd.isna(float(v)) else int(float(v))
-    except: return 0
-
-def load_data():
-    try:
-        res = requests.get(GAS_URL)
-        if res.status_code == 200:
-            data = res.json()
-            if isinstance(data, list): return data
-    except Exception as e:
-        st.error("連線異常，無法讀取資料庫。")
-    return []
-
-def auto_save():
-    try:
-        payload = {"action": "save_data", "data": st.session_state.inventory}
-        res = requests.post(GAS_URL, json=payload, headers={'Content-Type': 'application/json'})
-        if res.status_code == 200:
-            st.toast("☁️ 雲端已自動同步", icon="✅")
-    except:
-        st.toast("⚠️ 自動同步失敗，將於下次操作重試", icon="⚠️")
-
-def generate_short_code():
-    import random
-    chars = '23456789ABCDFGHJKLMNPQRSTUVWXYZ'
-    while True:
-        code = ''.join(random.choice(chars) for _ in range(4))
-        if not any(item.get('shortCode') == code for item in st.session_state.inventory):
-            return code
-
-def process_image_to_b64(uploaded_file, max_width=300):
-    if not uploaded_file: return ""
-    img = Image.open(uploaded_file)
-    if img.width > max_width:
-        ratio = max_width / float(img.width)
-        img = img.resize((max_width, int(float(img.height) * ratio)), Image.Resampling.LANCZOS)
-    buffered = BytesIO()
-    img.save(buffered, format="JPEG", quality=60)
-    return base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-def upload_image_to_drive(base64_img, filename):
-    if not base64_img: return ""
-    payload = {"action": "upload_image", "base64Data": base64_img, "fileName": filename}
-    try:
-        res = requests.post(GAS_URL, json=payload, headers={'Content-Type': 'application/json'})
-        if res.status_code == 200: return res.json().get("imageUrl", "")
-    except: pass
-    return ""
-
-def call_gemini_api(prompt, base64_img, api_key):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}, {"inline_data": {"mime_type": "image/jpeg", "data": base64_img}}]}],
-        "generationConfig": {"response_mime_type": "application/json"}
-    }
-    res = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
-    if res.status_code == 200:
-        return json.loads(res.json()['candidates'][0]['content']['parts'][0]['text'])
-    else:
-        raise Exception(f"AI 回應錯誤: {res.text}")
-
-# 初始化狀態
-if 'inventory' not in st.session_state:
-    st.session_state.inventory = load_data()
-if 'scanned_sku' not in st.session_state:
-    st.session_state.scanned_sku = ""
-if 'pending_ai_item' not in st.session_state:
-    st.session_state.pending_ai_item = None
-
-# =========================================
-# 🛡️ 左側邊欄：進階設定 (將不常用的放到底部)
-# =========================================
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/679/679821.png", width=60)
-    st.header("系統設定")
-    if API_KEY:
-        st.success("✨ AI 視覺引擎：已啟用")
-    else:
-        st.error("⚠️ AI 引擎：未設定金鑰")
-    
-    st.divider()
-    
-    # 放置於側邊欄最下方的系統維護區
-    st.markdown("<br>"*5, unsafe_allow_html=True) # 用空白推到底部
-    st.caption("進階選項")
-    with st.expander("🛠️ 系統還原 (上傳 CSV)"):
-        uploaded_file = st.file_uploader("上傳盤點報告", type="csv")
-        if uploaded_file and st.button("🚨 強制覆蓋還原", type="primary"):
-            try:
-                df_backup = pd.read_csv(uploaded_file, skiprows=2)
-                restored_data = []
-                for _, row in df_backup.iterrows():
-                    raw_sku = str(row.get('SKU', 'N/A'))
-                    clean_sku = raw_sku[2:-1] if raw_sku.startswith('="') and raw_sku.endswith('"') else raw_sku
-                    restored_data.append({
-                        "shortCode": str(row.get('四碼代號', generate_short_code())),
-                        "area": str(row.get('區域', '未指定')),
-                        "category": str(row.get('分類', '未分類')),
-                        "sku": clean_sku,
-                        "name": str(row.get('產品名稱', '未知產品')),
-                        "unit": str(row.get('單位', '件')),
-                        "price": safe_float(row.get('單價', 0)),
-                        "bookQty": 0,
-                        "actualQty": safe_int(row.get('實盤數量', 0)),
-                        "image": "", 
-                        "isPrinted": False
-                    })
-                st.session_state.inventory = restored_data
-                auto_save() 
-                st.success("✅ 還原成功！")
-                st.rerun()
-            except Exception as e:
-                st.error("還原失敗！")
-
-# =========================================
-# 🖥️ 頂部儀表板 (Dashboard)
-# =========================================
-st.markdown("## 🏢 禮品盤點系統 Pro")
-
-col1, col2, col3 = st.columns([1, 1, 1.5])
-total_items = len(st.session_state.inventory)
-total_value = sum(safe_float(item.get('price', 0)) * safe_int(item.get('actualQty', 0)) for item in st.session_state.inventory)
-
-with col1: st.metric("📦 庫存品項", total_items)
-with col2: st.metric("💰 資產總值", f"${total_value:,.0f}")
-with col3:
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🔄 重新載入雲端資料", use_container_width=True):
-        st.session_state.inventory = load_data()
-        st.rerun()
-
-st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
-
-# 主要分頁
-tab_ai, tab_add, tab_scan, tab_table, tab_print = st.tabs([
-    "✨ AI 智能建檔", "➕ 手動/掃碼", "🔍 快速盤點", "📊 庫存總表", "🖨️ 封條"
-])
-
-# -----------------------------------------
-# 分頁 1：✨ AI 智能建檔 (人類審批流)
-# -----------------------------------------
-with tab_ai:
-    st.markdown("### 🤖 拍下包裝，AI 幫你建檔")
-    if not API_KEY:
-        st.info("請先設定 Gemini API Key")
-    else:
-        ai_photo = st.camera_input("📸 拍攝產品照片以交給 AI", key="ai_cam")
+        .premium-table-wrapper { width: 100%; overflow-x: auto; background: var(--ios-card); border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .premium-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .premium-table th { background: #F9F9FB; color: var(--ios-gray); font-weight: 600; padding: 16px; font-size: 14px; border-bottom: 2px solid #E5E5EA; white-space: nowrap; }
+        .premium-table td { padding: 16px; border-bottom: 1px solid #E5E5EA; vertical-align: middle; }
+        .premium-table tr:hover { background: #F9F9FB; }
         
-        # 按鈕區
-        if ai_photo:
-            ai_b64 = process_image_to_b64(ai_photo, max_width=600)
-            
-            c1, c2 = st.columns(2)
-            if c1.button("🔍 找舊貨 +1", use_container_width=True):
-                with st.spinner("AI 正在比對庫存特徵..."):
-                    inv_summary = [f"SKU: {i.get('sku')} | 名稱: {i.get('name')}" for i in st.session_state.inventory]
-                    prompt = f"""香港盤點助手。從清單找最符合產品。
-                    清單：{json.dumps(inv_summary)}
-                    回覆 JSON：{{"sku": "最匹配SKU或 NEW", "name": "產品名稱", "confidence": "數字0-100", "reason": "簡單說明"}}"""
-                    try:
-                        ai_result = call_gemini_api(prompt, ai_b64, API_KEY)
-                        if ai_result.get("sku") != "NEW" and float(ai_result.get("confidence", 0)) > 50:
-                            for item in st.session_state.inventory:
-                                if item.get("sku") == ai_result.get("sku"):
-                                    item["actualQty"] = safe_int(item.get("actualQty", 0)) + 1
-                                    item["isPrinted"] = False
-                                    auto_save()
-                                    st.success(f"🎉 辨識成功！【{item['name']}】數量已 +1！")
-                                    break
-                        else:
-                            st.warning("🤖 找不到相似舊貨，請使用右側「智能建檔」。")
-                    except Exception as e: st.error("AI 辨識失敗")
-            
-            if c2.button("📝 智能建檔 (擷取資料)", type="primary", use_container_width=True):
-                with st.spinner("AI 正在解析包裝資訊..."):
-                    prompt = """香港建檔助手。觀察照片自動填表。
-                    估算單價(HKD)。嚴格 JSON 回覆：
-                    {"name": "詳細名稱", "category": "最接近類別", "unit": "件/箱/樽/套", "sku": "條碼數字或空", "price": 數字或0}
-                    類別限選：HAMPER類(cheap餅), HAMPER類(朱古力,餅乾), BB野, 籃, ESG, 酒, 果汁, 永生花, 其他。"""
-                    try:
-                        st.session_state.pending_ai_item = call_gemini_api(prompt, ai_b64, API_KEY)
-                        st.session_state.pending_ai_img = ai_b64 # 暫存圖片，等審批過再上傳
-                        st.rerun() # 重新渲染進入審批畫面
-                    except Exception as e: st.error("AI 發生錯誤")
+        .missing-price-row { background-color: #FFF5F5 !important; }
+        .missing-price-row td:first-child { border-left: 4px solid var(--ios-red); }
+        .price-container { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; white-space: nowrap; }
+        .alert-badge { background: #FFEBEB; color: var(--ios-red); border: 1px solid #FFD6D6; padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 800; display: inline-block;}
 
-        # 🛑 人類審批區域 (當有 pending 狀態時顯示)
-        if st.session_state.pending_ai_item:
-            st.markdown("---")
-            st.markdown("### ✍️ 人工審批：請確認 AI 擷取的資料")
-            st.info("💡 檢查無誤後，點擊下方「批准並加入總表」才會正式存入雲端。")
+        .ios-card { background: var(--ios-card); border-radius: 16px; padding: 16px; box-shadow: 0 1px 5px rgba(0,0,0,0.05); margin-bottom:12px; }
+        .tag-group { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+        .tag-area { background: #E5F0FF; color: #007AFF; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+        .tag-cat { background: #E8F5E9; color: #34C759; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+
+        .form-group { margin-bottom: 12px; }
+        .form-label { display: block; font-size: 13px; color: var(--ios-gray); margin-bottom: 6px; font-weight: 600;}
+        .ios-input, .ios-select { width: 100%; padding: 14px; background: var(--ios-card); border: 1px solid #D1D1D6; border-radius: 12px; font-size: 16px; outline: none; }
+        .form-row { display: flex; gap: 10px; }
+        .action-btn { width: 100%; padding: 16px; border: none; border-radius: 14px; font-size: 17px; font-weight: 600; color: white; cursor: pointer; display: block; margin-top: 10px; }
+        
+        .btn-primary { background: linear-gradient(135deg, #007AFF, #0056b3); } 
+        .btn-ai { background: linear-gradient(135deg, #AF52DE, #5E5CE6); } 
+        .btn-normal { background: var(--ios-orange); }
+
+        .stepper { display: flex; align-items: center; background: var(--ios-light-gray); border-radius: 8px; width:fit-content;}
+        .stepper-btn { background: none; border: none; font-size: 20px; color: var(--ios-blue); width: 36px; height: 32px; cursor: pointer; }
+        .qty-input { width: 44px; height: 32px; border: none; background: none; text-align: center; font-size: 16px; font-weight: 600; padding: 0; }
+        .icon-btn-action { background: none; border: none; font-size: 20px; cursor: pointer; padding: 5px; margin: 0 5px; transition: transform 0.1s; }
+        .icon-btn-action:active { transform: scale(0.8); }
+
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-top: 0.5px solid rgba(0,0,0,0.1); padding: 10px 16px calc(10px + var(--safe-bottom)); display: flex; justify-content: space-around; z-index: 100; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; background: none; border: none; color: var(--ios-gray); font-size: 11px; font-weight: 500; cursor: pointer; }
+        .nav-btn.active { color: var(--ios-blue); }
+        .nav-btn .icon { font-size: 24px; margin-bottom: 2px; }
+
+        @media (min-width: 1024px) {
+            body { max-width: 1200px; margin: auto; }
+            .bottom-nav { display: none; }
+            .desktop-nav { display: flex; gap: 15px; margin-bottom: 20px; }
+            .desktop-nav-btn { padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; border:none; background:var(--ios-light-gray); color:var(--ios-gray);}
+            .desktop-nav-btn.active { background:var(--ios-blue); color:white; }
+        }
+        @media (max-width: 1023px) { .desktop-nav { display: none; } .desktop-only-table {display: none;} }
+
+        #loadingOverlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; color:white; justify-content:center; align-items:center; flex-direction:column; font-weight:bold; backdrop-filter:blur(5px);}
+        .spinner { border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom:15px;}
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        #printArea { display: none; }
+        @media print {
+            body * { visibility: hidden; } body { background: white; margin: 0; padding: 0; } @page { margin: 0; size: 80mm auto; }
+            #printArea, #printArea * { visibility: visible; }
+            #printArea { display: block !important; position: absolute; left: 0; top: 0; width: 100%; max-width: 300px; padding: 10px; font-family: sans-serif; color: #000; background: white; }
+            .seal-page { page-break-after: always; padding-bottom: 20px; }
+            .seal-header { font-size: 16px; font-weight: 900; text-align: center; border-bottom: 3px solid black; padding-bottom: 8px; margin-bottom: 12px; }
+            .seal-code { font-size: 42px; font-weight: 900; text-align: center; letter-spacing: 6px; border: 4px solid black; padding: 10px 0; border-radius: 8px; margin: 15px 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="sticky-header">
+    <h1 class="header-title">盤點助手 Pro 7.1</h1>
+    <div class="dashboard">
+        <div class="total-box"><span style="font-size: 12px; color: var(--ios-gray); font-weight: 600;">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
+        <div style="display:flex; gap:10px;">
+            <button class="sync-btn" onclick="syncData()" title="強制同步">🔄</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="desktop-nav">
+        <button class="desktop-nav-btn" id="d-nav-table" onclick="switchView('view-table')">📋 庫存總表</button>
+        <button class="desktop-nav-btn" id="d-nav-add" onclick="switchView('view-add')">➕ 新增產品</button>
+        <button class="action-btn" style="width:auto; margin:0; background:#333;" onclick="batchPrint()">🖨️ 印未印封條</button>
+    </div>
+
+    <div id="view-add" class="view-section">
+        <h2 style="margin-top:0;">新增產品</h2>
+        
+        <div class="form-group" style="background:var(--ios-card); padding:16px; border-radius:16px; box-shadow: 0 2px 10px rgba(0,0,0,0.03);">
+            <div style="display:flex; gap:10px;">
+                <button class="action-btn btn-normal" style="margin-top:0;" onclick="triggerCamera('normal')">📷 一般拍照</button>
+                <button class="action-btn btn-ai" style="margin-top:0;" onclick="triggerCamera('ai')">✨ AI 自動填表</button>
+            </div>
+            <input type="file" id="cameraInput" style="display:none;" accept="image/*" capture="environment" onchange="handlePhoto(event)">
+            <img id="previewImage" src="" style="width:100%; max-height:200px; object-fit:contain; margin-top:15px; display:none; border-radius:12px;">
+            <input type="hidden" id="tempImageData"> 
+        </div>
+
+        <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+                <label class="form-label">SKU 編號</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="add-sku" class="ios-input" placeholder="掃描或輸入">
+                    <button class="action-btn btn-primary" style="margin:0; width:48px; padding:0;" onclick="toggleSkuScanner()">📷</button>
+                </div>
+            </div>
+            <div class="form-group" style="flex: 1;"><label class="form-label">區域</label><input type="text" id="add-area" class="ios-input" placeholder="例: A-01"></div>
+        </div>
+        
+        <div id="skuReaderWrapper" style="display:none; margin-bottom:15px;"><div id="skuReader" style="width:100%; border-radius:16px; overflow:hidden;"></div></div>
+
+        <div class="form-group"><label class="form-label">產品名稱 (必填)</label><input type="text" id="add-name" class="ios-input" placeholder="請確認或輸入"></div>
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">分類</label>
+                <select id="add-cat" class="ios-select">
+                    <option value="HAMPER">HAMPER</option>
+                    <option value="HAMPER類(cheap餅)">HAMPER(cheap餅)</option>
+                    <option value="HAMPER類(朱古力,餅乾)">HAMPER(朱古力)</option>
+                    <option value="BB野">BB野</option>
+                    <option value="籃">籃</option>
+                    <option value="ESG">ESG</option>
+                    <option value="酒">酒</option>
+                    <option value="果汁">果汁</option>
+                    <option value="永生花">永生花</option>
+                    <option value="其他">其他</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 1;"><label class="form-label">單位</label><select id="add-unit" class="ios-select"><option value="件">件</option><option value="箱">箱</option><option value="樽">樽</option><option value="套">套</option></select></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;"><label class="form-label">單價 ($)</label><input type="number" id="add-price" class="ios-input" placeholder="留空將特別標示" inputmode="decimal"></div>
+            <div class="form-group" style="flex: 1;"><label class="form-label">實盤數量</label><input type="number" id="add-qty" class="ios-input" value="0" inputmode="numeric"></div>
+        </div>
+        
+        <button class="action-btn btn-primary" onclick="saveProduct()">💾 確認儲存並加入總表</button>
+    </div>
+
+    <div id="view-table" class="view-section">
+        <input type="text" id="search" class="ios-input" placeholder="🔍 搜尋名稱、SKU 或短碼..." style="margin-bottom:16px;" onkeyup="renderData()">
+        
+        <div class="premium-table-wrapper desktop-only-table">
+            <table class="premium-table">
+                <thead><tr><th>短碼</th><th>圖片</th><th>名稱 / SKU</th><th>區域 / 分類</th><th>單價</th><th>數量</th><th style="text-align:center;">操作</th></tr></thead>
+                <tbody id="desktopTableBody"></tbody>
+            </table>
+        </div>
+
+        <div id="mobileListBody" style="margin-top: 10px;"></div>
+
+        <details style="margin-top: 40px; color: var(--ios-gray);">
+            <summary style="cursor:pointer; font-weight:600;">🛠️ 進階：上傳 CSV 備份還原</summary>
+            <div style="padding: 15px; background:var(--ios-card); border-radius:12px; margin-top:10px;">
+                <input type="file" id="csvUpload" accept=".csv" style="margin-bottom:10px;"><br>
+                <button onclick="restoreCSV()" style="background:var(--ios-red); color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:bold;">🚨 強制覆蓋還原</button>
+            </div>
+        </details>
+    </div>
+</div>
+
+<div class="bottom-nav">
+    <button class="nav-btn" id="m-nav-table" onclick="switchView('view-table')"><span class="icon">📋</span><span>總表</span></button>
+    <button class="nav-btn" id="m-nav-add" onclick="switchView('view-add')"><span class="icon">➕</span><span>新增</span></button>
+    <button class="nav-btn" onclick="batchPrint()"><span class="icon">🖨️</span><span>印封條</span></button>
+</div>
+
+<div id="loadingOverlay"><div class="spinner"></div><div id="loadingText">處理中...</div></div>
+<div id="printArea"></div>
+
+<div id="viewImageModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:200; display:none; justify-content:center; align-items:center; flex-direction:column; backdrop-filter:blur(5px);">
+    <div style="width:90%; max-width:500px; background:var(--ios-card); border-radius:16px; padding:20px; text-align:center; position:relative; box-shadow: 0 10px 25px rgba(0,0,0,0.5); animation: fadeIn 0.2s ease;">
+        <button onclick="document.getElementById('viewImageModal').style.display='none'" style="position:absolute; top:10px; right:10px; background:var(--ios-light-gray); color:var(--ios-text); border:none; border-radius:50%; width:30px; height:30px; font-weight:bold; cursor:pointer; font-size:14px;">✕</button>
+        <h3 style="margin-top:0; margin-bottom:15px; color:var(--ios-text);">產品圖片</h3>
+        <img id="largeImageDisplay" src="" style="width:100%; border-radius:12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+    </div>
+</div>
+
+<div id="editModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:300; display:none; justify-content:center; align-items:center; flex-direction:column; backdrop-filter:blur(5px);">
+    <div style="width:90%; max-width:500px; background:var(--ios-card); border-radius:16px; padding:20px; text-align:left; position:relative; box-shadow: 0 10px 25px rgba(0,0,0,0.5); animation: fadeIn 0.2s ease;">
+        <button onclick="document.getElementById('editModal').style.display='none'" style="position:absolute; top:10px; right:10px; background:var(--ios-light-gray); color:var(--ios-text); border:none; border-radius:50%; width:30px; height:30px; font-weight:bold; cursor:pointer; font-size:14px;">✕</button>
+        <h3 style="margin-top:0; margin-bottom:15px; color:var(--ios-text); text-align:center;">修改產品資料</h3>
+        
+        <input type="hidden" id="edit-index">
+        
+        <div class="form-group"><label class="form-label">產品名稱</label><input type="text" id="edit-name" class="ios-input"></div>
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;"><label class="form-label">單價 ($)</label><input type="number" id="edit-price" class="ios-input" inputmode="decimal"></div>
+            <div class="form-group" style="flex: 1;"><label class="form-label">SKU</label><input type="text" id="edit-sku" class="ios-input"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex: 1;"><label class="form-label">區域</label><input type="text" id="edit-area" class="ios-input"></div>
+            <div class="form-group" style="flex: 1;">
+                <label class="form-label">分類</label>
+                <select id="edit-cat" class="ios-select">
+                    <option value="HAMPER">HAMPER</option>
+                    <option value="HAMPER類(cheap餅)">HAMPER(cheap餅)</option>
+                    <option value="HAMPER類(朱古力,餅乾)">HAMPER(朱古力)</option>
+                    <option value="BB野">BB野</option>
+                    <option value="籃">籃</option>
+                    <option value="ESG">ESG</option>
+                    <option value="酒">酒</option>
+                    <option value="果汁">果汁</option>
+                    <option value="永生花">永生花</option>
+                    <option value="其他">其他</option>
+                </select>
+            </div>
+        </div>
+        
+        <button class="action-btn btn-primary" onclick="saveEditProduct()">💾 儲存修改</button>
+    </div>
+</div>
+
+<script>
+    // ⚠️ 記得替換成你最新發布的 GAS 網址！
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
+    
+    let inventory = [];
+    let skuScanner = null;
+    let currentPhotoMode = 'normal';
+
+    window.onload = async function() {
+        if (window.innerWidth >= 1024) { switchView('view-table'); } 
+        else { switchView('view-add'); }
+        await syncData();
+    };
+
+    function switchView(viewId) {
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        document.querySelectorAll('.desktop-nav-btn, .nav-btn').forEach(el => el.classList.remove('active'));
+        if(document.getElementById(`d-nav-${viewId.split('-')[1]}`)) document.getElementById(`d-nav-${viewId.split('-')[1]}`).classList.add('active');
+        if(document.getElementById(`m-nav-${viewId.split('-')[1]}`)) document.getElementById(`m-nav-${viewId.split('-')[1]}`).classList.add('active');
+        if (viewId === 'view-table') renderData();
+    }
+
+    function showLoading(text) { document.getElementById('loadingText').innerText = text; document.getElementById('loadingOverlay').style.display = 'flex'; }
+    function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
+
+    async function syncData() {
+        showLoading("正在與雲端同步...");
+        try {
+            const res = await fetch(GAS_URL + "?t=" + new Date().getTime());
+            const data = await res.json();
+            if (Array.isArray(data)) inventory = data;
+            renderData();
+        } catch(e) { alert("同步失敗，請檢查網路。"); }
+        hideLoading();
+    }
+
+    async function autoSaveToCloud() {
+        try {
+            await fetch(GAS_URL, { 
+                method: "POST", 
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({action: "save_data", data: inventory}) 
+            });
+        } catch(e) { console.error("Auto save failed", e); }
+    }
+
+    function triggerCamera(mode) {
+        currentPhotoMode = mode;
+        document.getElementById('cameraInput').click();
+    }
+
+    async function handlePhoto(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = async function() {
+            const maxW = 250; 
+            let scale = maxW / img.width; if(scale>1) scale=1;
+            canvas.width = img.width * scale; canvas.height = img.height * scale;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             
-            p_data = st.session_state.pending_ai_item
-            with st.form("ai_approval_form"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    app_name = st.text_input("產品名稱", value=p_data.get("name", ""))
-                    app_sku = st.text_input("SKU 編號", value=p_data.get("sku", ""))
-                    app_area = st.text_input("區域", value="未指定")
-                with col_b:
-                    cat_options = ["HAMPER類(cheap餅)", "HAMPER類(朱古力,餅乾)", "BB野", "籃", "ESG", "酒", "果汁", "永生花", "其他"]
-                    default_cat = p_data.get("category", "其他")
-                    app_cat = st.selectbox("分類", cat_options, index=cat_options.index(default_cat) if default_cat in cat_options else 8)
-                    app_unit = st.selectbox("單位", ["件", "箱", "樽", "套", "其他"])
-                    app_price = st.number_input("AI 估算單價 ($)", value=safe_float(p_data.get("price", 0.0)))
-                    app_qty = st.number_input("實盤數量", min_value=0, value=1)
-                
-                c_btn1, c_btn2 = st.columns(2)
-                submit_approve = c_btn1.form_submit_button("✅ 批准並加入總表", type="primary")
-                submit_reject = c_btn2.form_submit_button("❌ 捨棄此筆資料")
-                
-                if submit_approve:
-                    with st.spinner("正在上傳圖片至圖床並儲存..."):
-                        img_url = upload_image_to_drive(st.session_state.pending_ai_img, f"AI_{uuid.uuid4().hex[:6]}.jpg")
-                        new_item = {
-                            "shortCode": generate_short_code(),
-                            "area": app_area, "category": app_cat, "sku": app_sku or "N/A",
-                            "name": app_name, "unit": app_unit, "price": app_price,
-                            "bookQty": 0, "actualQty": app_qty, "image": img_url, "isPrinted": False
+            const b64 = canvas.toDataURL('image/jpeg', 0.5);
+            
+            document.getElementById('tempImageData').value = b64;
+            document.getElementById('previewImage').src = b64;
+            document.getElementById('previewImage').style.display = 'block';
+
+            if (currentPhotoMode === 'ai') {
+                showLoading("✨ AI 正在解析包裝資訊...");
+                try {
+                    const res = await fetch(GAS_URL, {
+                        method: 'POST',
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({
+                            action: 'gemini', 
+                            prompt: '香港建檔助手。請自動填表，估算單價(HKD)。只輸出純JSON格式，不要有任何其他文字或Markdown標籤。嚴格格式：{"name":"名稱","category":"分類","unit":"件/箱/樽/套","sku":"條碼","price":數字}，分類包含HAMPER。', 
+                            image: b64.split(',')[1]
+                        })
+                    });
+                    
+                    const rawData = await res.json();
+                    if(rawData.error) throw new Error(rawData.error.message);
+                    
+                    const rawText = rawData.candidates[0].content.parts[0].text;
+                    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) throw new Error("AI未回傳有效的 JSON 格式");
+                    
+                    const aiData = JSON.parse(jsonMatch[0]);
+                    
+                    if(aiData.name) document.getElementById('add-name').value = aiData.name;
+                    if(aiData.sku && aiData.sku !== "N/A") document.getElementById('add-sku').value = aiData.sku;
+                    if(aiData.price) document.getElementById('add-price').value = aiData.price;
+                    
+                    if(aiData.category) {
+                        const catSelect = document.getElementById('add-cat');
+                        for(let i=0; i<catSelect.options.length; i++) {
+                            if(catSelect.options[i].value.includes(aiData.category) || aiData.category.includes(catSelect.options[i].value)) {
+                                catSelect.selectedIndex = i; break;
+                            }
                         }
-                        st.session_state.inventory.append(new_item)
-                        auto_save()
-                        st.session_state.pending_ai_item = None # 清除暫存
-                        st.success("✅ 審批通過，已成功寫入資料庫！")
-                        st.rerun()
-                
-                if submit_reject:
-                    st.session_state.pending_ai_item = None
-                    st.warning("🗑️ 已捨棄 AI 建議資料。")
-                    st.rerun()
-
-# -----------------------------------------
-# 分頁 2：➕ 手動 / 掃碼建檔 (SKU 掃描回歸)
-# -----------------------------------------
-with tab_add:
-    st.markdown("### ➕ 新增產品")
-    
-    # 📷 SKU 相機掃描區塊 (放在 Expander 裡保持 UI 整潔)
-    with st.expander("📷 開啟相機掃描 SKU 條碼 (iPhone 16 Pro 適用)", expanded=False):
-        st.caption("💡 拍攝商品條碼，系統會自動解析並填入下方的 SKU 欄位。")
-        sku_photo = st.camera_input("拍攝條碼", key="sku_only_cam")
-        if sku_photo and decode:
-            img = Image.open(sku_photo)
-            barcodes = decode(img)
-            if barcodes:
-                st.session_state.scanned_sku = barcodes[0].data.decode('utf-8')
-                st.success(f"🎯 成功掃描 SKU：{st.session_state.scanned_sku}")
-            else:
-                st.error("⚠️ 無法辨識條碼，請靠近一點或確保對焦清晰。")
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    with st.form("manual_add_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            # SKU 預設帶入剛剛掃描到的結果
-            new_sku = st.text_input("SKU 編號", value=st.session_state.scanned_sku, placeholder="可手寫或使用上方掃描")
-            new_area = st.text_input("區域", placeholder="例: A-01")
-            new_name = st.text_input("產品名稱 (必填)*")
-        with col2:
-            new_cat = st.selectbox("分類", ["HAMPER類(cheap餅)", "HAMPER類(朱古力,餅乾)", "BB野", "籃", "ESG", "酒", "果汁", "永生花", "其他"])
-            new_unit = st.selectbox("單位", ["件", "箱", "樽", "套", "其他"])
-            new_price = st.number_input("單價 ($) 💡非必填", value=0.0, step=1.0)
-            new_qty = st.number_input("初始實盤數量", min_value=0, value=0, step=1)
-            
-        submit_add = st.form_submit_button("💾 儲存並上傳雲端", type="primary")
-        
-        if submit_add:
-            if not new_name:
-                st.error("⚠️ 產品名稱不可空白！")
-            else:
-                new_item = {
-                    "shortCode": generate_short_code(),
-                    "area": new_area, "category": new_cat, "sku": new_sku or "N/A",
-                    "name": new_name, "unit": new_unit, "price": float(new_price),
-                    "bookQty": 0, "actualQty": int(new_qty), "image": "", "isPrinted": False
+                    }
+                    
+                    alert("✅ AI 解析完成！請確認表單資料，修改無誤後再點擊『儲存』。");
+                } catch(e) { 
+                    console.error(e);
+                    alert("AI 解析失敗，請再拍一次。\n錯誤訊息：" + e.message); 
                 }
-                st.session_state.inventory.append(new_item)
-                st.session_state.scanned_sku = "" # 存檔後清空掃描暫存
-                auto_save()
-                st.success(f"✅ {new_name} 新增成功！")
+                hideLoading();
+            }
+        }
+        img.src = URL.createObjectURL(file);
+    }
 
-# -----------------------------------------
-# 分頁 3：🔍 快速盤點 (+/- 操作)
-# -----------------------------------------
-with tab_scan:
-    search_query = st.text_input("🔍 搜尋名稱、SKU 或短碼...", placeholder="輸入關鍵字...")
-    
-    if search_query:
-        filtered_indices = [i for i, item in enumerate(st.session_state.inventory) if search_query.lower() in str(item.values()).lower()]
-        for idx in filtered_indices:
-            item = st.session_state.inventory[idx]
-            with st.container(border=True):
-                c1, c2, c3 = st.columns([1, 3, 2])
-                with c1:
-                    if item.get('image'): st.image(item['image'], width=70)
-                    else: st.info("無圖片")
-                with c2:
-                    st.markdown(f"**{item.get('name')}**")
-                    st.caption(f"`{item.get('shortCode')}` | SKU: {item.get('sku')}")
-                with c3:
-                    bc1, bc2 = st.columns(2)
-                    if bc1.button("➖", key=f"m_{idx}", use_container_width=True):
-                        if int(item.get('actualQty', 0)) > 0:
-                            st.session_state.inventory[idx]['actualQty'] -= 1
-                            st.session_state.inventory[idx]['isPrinted'] = False
-                            auto_save()
-                            st.rerun()
-                    if bc2.button("➕", key=f"p_{idx}", type="primary", use_container_width=True):
-                        st.session_state.inventory[idx]['actualQty'] += 1
-                        st.session_state.inventory[idx]['isPrinted'] = False
-                        auto_save()
-                        st.rerun()
-                    st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:1.2rem;'>{item.get('actualQty',0)} {item.get('unit')}</div>", unsafe_allow_html=True)
-
-# -----------------------------------------
-# 分頁 4：📊 庫存總表 (動態修改)
-# -----------------------------------------
-with tab_table:
-    st.markdown("### 📋 庫存總表 (可直接編輯)")
-    if st.session_state.inventory:
-        df = pd.DataFrame(st.session_state.inventory)
-        display_cols = ['shortCode', 'area', 'name', 'sku', 'category', 'price', 'actualQty', 'unit', 'isPrinted']
-        for col in display_cols:
-            if col not in df.columns: df[col] = False if col == 'isPrinted' else (0 if col in ['price', 'actualQty'] else "")
-                
-        edited_df = st.data_editor(
-            df[display_cols],
-            column_config={
-                "shortCode": st.column_config.TextColumn("四碼", disabled=True),
-                "area": "區域", "name": "產品名稱", "sku": "SKU", "category": "分類",
-                "price": st.column_config.NumberColumn("單價", format="$ %.2f"),
-                "actualQty": st.column_config.NumberColumn("數量", min_value=0, step=1),
-                "isPrinted": st.column_config.CheckboxColumn("已印封條")
-            },
-            hide_index=True, use_container_width=True, num_rows="dynamic"
-        )
+    async function saveProduct() {
+        const name = document.getElementById('add-name').value;
+        if (!name) return alert("產品名稱不可空白！");
         
-        if not df[display_cols].equals(edited_df):
-            updated_inv = []
-            for i, row in edited_df.iterrows():
-                original_item = st.session_state.inventory[i] if i < len(st.session_state.inventory) else {}
-                updated_inv.append({**original_item, **row.to_dict()})
-            st.session_state.inventory = updated_inv
-            auto_save()
-            st.success("✅ 編輯已自動同步！")
-            
-        csv = edited_df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📊 匯出 Excel (CSV)", data=csv, file_name='盤點總表.csv', mime='text/csv')
-    else:
-        st.info("尚無資料")
+        showLoading("🚀 正在儲存至雲端...");
+        
+        const compressedBase64 = document.getElementById('tempImageData').value;
+        const priceVal = parseFloat(document.getElementById('add-price').value);
+        
+        inventory.unshift({ 
+            shortCode: Math.random().toString(36).substring(2,6).toUpperCase(),
+            area: document.getElementById('add-area').value || "未指定",
+            category: document.getElementById('add-cat').value,
+            sku: document.getElementById('add-sku').value || "N/A",
+            name: name,
+            unit: document.getElementById('add-unit').value,
+            price: isNaN(priceVal) ? 0 : priceVal,
+            bookQty: 0,
+            actualQty: parseInt(document.getElementById('add-qty').value) || 0,
+            image: compressedBase64,
+            isPrinted: false
+        });
 
-# -----------------------------------------
-# 分頁 5：🖨️ 封條列印
-# -----------------------------------------
-with tab_print:
-    unprinted = [item for item in st.session_state.inventory if not item.get('isPrinted')]
-    st.metric("待列印封條數量", len(unprinted))
-    
-    if unprinted:
-        if st.button("🖨️ 產生 80mm 批次列印畫面", type="primary"):
-            html = """<html><head><style>
-                @media print { body { margin: 0; padding: 0; } }
-                .seal { page-break-after: always; width: 300px; padding: 10px; font-family: sans-serif; border-bottom: 1px dashed #ccc; margin-bottom: 20px;}
-                .header { text-align: center; font-weight: bold; border-bottom: 2px solid black; padding-bottom: 5px; margin-bottom: 10px;}
-                .code { font-size: 32px; font-weight: 900; text-align: center; letter-spacing: 5px; border: 2px solid black; padding: 5px; margin: 10px 0;}
-                .qty { font-size: 28px; font-weight: bold; text-align: center; margin: 10px 0;}
-                .warn { font-size: 12px; text-align: center; border-top: 1px dashed black; padding-top: 5px;}
-            </style></head><body onload="window.print()">"""
-            for item in unprinted:
-                html += f"""<div class='seal'><div class='header'>✅ INVENTORY COMPLETED</div>
-                    <div style='display:flex; justify-content:space-between; font-size:12px;'><span>區域: {item.get('area', 'N/A')}</span><span>2026年3月</span></div>
-                    <div class='code'>{item.get('shortCode')}</div><div style='text-align:center; font-weight:bold;'>{item.get('name')}</div>
-                    <div class='qty'>{item.get('actualQty')} <span style='font-size:14px;'>{item.get('unit')}</span></div>
-                    <div class='warn'>⚠️ 封條損毀即屬無效</div></div>"""
-            html += "</body></html>"
-            st.components.v1.html(html, height=600, scrolling=True)
-            for item in st.session_state.inventory:
-                if not item.get('isPrinted'): item['isPrinted'] = True
-            auto_save()
-    else:
-        st.success("🎉 所有封條已列印！")
+        await autoSaveToCloud();
+        
+        ['add-name','add-sku','add-price','add-qty','tempImageData'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('previewImage').style.display = 'none';
+        
+        hideLoading();
+        alert("✅ 儲存成功！");
+        if(window.innerWidth >= 1024) switchView('view-table'); 
+        else renderData();
+    }
+
+    function deleteProduct(index) {
+        const itemName = inventory[index].name;
+        if(confirm(`⚠️ 確定要永久刪除「${itemName}」嗎？\n刪除後將同步從雲端移除！`)) {
+            inventory.splice(index, 1);
+            renderData();
+            autoSaveToCloud();
+        }
+    }
+
+    // ==================== 圖片彈出視窗控制 ====================
+    function viewImage(index) {
+        const item = inventory[index];
+        if (item.image) {
+            document.getElementById('largeImageDisplay').src = item.image;
+            document.getElementById('viewImageModal').style.display = 'flex';
+        }
+    }
+
+    // ==================== 編輯功能控制 ====================
+    function openEditModal(index) {
+        const item = inventory[index];
+        document.getElementById('edit-index').value = index;
+        document.getElementById('edit-name').value = item.name || '';
+        document.getElementById('edit-price').value = item.price || '';
+        document.getElementById('edit-sku').value = item.sku || '';
+        document.getElementById('edit-area').value = item.area || '';
+        
+        // 嘗試選中對應分類
+        const catSelect = document.getElementById('edit-cat');
+        let found = false;
+        for(let i=0; i<catSelect.options.length; i++) {
+            if(catSelect.options[i].value === item.category) {
+                catSelect.selectedIndex = i;
+                found = true; break;
+            }
+        }
+        if(!found) catSelect.selectedIndex = 9; // 預設「其他」
+        
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    async function saveEditProduct() {
+        const index = document.getElementById('edit-index').value;
+        const newName = document.getElementById('edit-name').value;
+        const newPrice = parseFloat(document.getElementById('edit-price').value);
+        
+        if (!newName) return alert("產品名稱不可空白！");
+        
+        showLoading("🚀 正在儲存修改...");
+
+        inventory[index].name = newName;
+        inventory[index].price = isNaN(newPrice) ? 0 : newPrice;
+        inventory[index].sku = document.getElementById('edit-sku').value || "N/A";
+        inventory[index].area = document.getElementById('edit-area').value || "未指定";
+        inventory[index].category = document.getElementById('edit-cat').value;
+
+        document.getElementById('editModal').style.display = 'none';
+        
+        await autoSaveToCloud();
+        renderData();
+        hideLoading();
+    }
+
+    function renderData() {
+        const query = document.getElementById('search').value.toLowerCase();
+        const dBody = document.getElementById('desktopTableBody');
+        const mBody = document.getElementById('mobileListBody');
+        dBody.innerHTML = ''; mBody.innerHTML = '';
+        let total = 0;
+
+        inventory.forEach((item, index) => {
+            const itemTotal = (item.price || 0) * (item.actualQty || 0);
+            total += itemTotal;
+
+            if (Object.values(item).some(val => String(val).toLowerCase().includes(query))) {
+                
+                const isMissingPrice = !item.price || item.price === 0;
+                const priceText = isMissingPrice 
+                    ? `<div class="price-container"><span style="color:var(--ios-red);font-weight:bold;">$0</span> <span class="alert-badge">⚠️ 需補單價</span></div>` 
+                    : `<div class="price-container"><span>$${item.price}</span></div>`;
+                
+                const rowClass = isMissingPrice ? "missing-price-row" : "";
+                
+                const imgHtml = item.image 
+                    ? `<img src="${item.image}" onclick="viewImage(${index})" style="width:40px; height:40px; object-fit:cover; border-radius:6px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2);" title="點擊看大圖">` 
+                    : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
+                
+                const printBtn = item.isPrinted ? '✅' : '🖨️';
+
+                dBody.innerHTML += `
+                    <tr class="${rowClass}">
+                        <td><span style="font-family:monospace; font-weight:bold; background:var(--ios-light-gray); padding:4px 8px; border-radius:6px;">${item.shortCode}</span></td>
+                        <td style="text-align:center;">${imgHtml}</td>
+                        <td><b style="font-size:15px;">${item.name}</b><br><span style="font-size:12px; color:var(--ios-gray);">SKU: ${item.sku}</span></td>
+                        <td>${item.area} <span style="color:var(--ios-gray);">/ ${item.category}</span></td>
+                        <td>${priceText}</td>
+                        <td>
+                            <div class="stepper">
+                                <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
+                                <input class="qty-input" value="${item.actualQty}" readonly>
+                                <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
+                            </div>
+                        </td>
+                        <td style="text-align:center; white-space:nowrap;">
+                            <button class="icon-btn-action" style="color:var(--ios-blue);" onclick="openEditModal(${index})" title="編輯修改">✏️</button>
+                            <button class="icon-btn-action" style="color:var(--ios-text);" onclick="printSingle(${index})" title="列印封條">${printBtn}</button>
+                            <button class="icon-btn-action" style="color:var(--ios-red);" onclick="deleteProduct(${index})" title="刪除此項">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+
+                mBody.innerHTML += `
+                    <div class="ios-card ${rowClass ? 'missing-price-row' : ''}" style="border: ${isMissingPrice ? '1px solid #FFD6D6' : 'none'}">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+                            <div class="tag-group">
+                                <span class="tag-area">📍 ${item.area || '未分區'}</span>
+                                <span class="tag-cat">🏷️ ${item.category}</span>
+                            </div>
+                            <span style="font-family:monospace; font-weight:bold; font-size:14px; background:var(--ios-light-gray); padding:2px 6px; border-radius:4px;">${item.shortCode}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <h3 style="margin:0 0 5px 0; font-size:16px; width:80%; line-height:1.4;">${item.name}</h3>
+                            ${imgHtml}
+                        </div>
+                        <div style="font-size:12px; color:var(--ios-gray); margin-bottom:12px;">SKU: ${item.sku}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            ${priceText}
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div class="stepper">
+                                    <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
+                                    <div style="font-weight:bold; padding:0 10px;">${item.actualQty}</div>
+                                    <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
+                                </div>
+                                <button class="icon-btn-action" style="color:var(--ios-blue); margin:0;" onclick="openEditModal(${index})" title="編輯">✏️</button>
+                                <button class="icon-btn-action" style="color:var(--ios-red); margin:0;" onclick="deleteProduct(${index})" title="刪除">🗑️</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        document.getElementById('grandTotal').innerText = `$${total.toLocaleString()}`;
+    }
+
+    function adjustQty(index, amt) {
+        if(navigator.vibrate) navigator.vibrate(50);
+        if(inventory[index].actualQty + amt >= 0) {
+            inventory[index].actualQty += amt;
+            inventory[index].isPrinted = false; 
+            renderData();
+            autoSaveToCloud();
+        }
+    }
+
+    let isScanning = false;
+    function toggleSkuScanner() {
+        const wrapper = document.getElementById('skuReaderWrapper');
+        if (!isScanning) {
+            wrapper.style.display = 'block';
+            skuScanner = new Html5Qrcode("skuReader");
+            skuScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 100 } }, 
+                (decodedText) => {
+                    if(navigator.vibrate) navigator.vibrate(50);
+                    document.getElementById('add-sku').value = decodedText.trim();
+                    skuScanner.stop(); wrapper.style.display = 'none'; isScanning = false;
+                }, 
+                (err) => {}
+            ).then(()=> isScanning = true);
+        } else {
+            skuScanner.stop(); wrapper.style.display = 'none'; isScanning = false;
+        }
+    }
+
+    function printSingle(index) {
+        inventory[index].isPrinted = true;
+        renderData(); autoSaveToCloud();
+        triggerPrintHTML([inventory[index]]);
+    }
+
+    function batchPrint() {
+        const unprinted = inventory.filter(i => !i.isPrinted);
+        if(unprinted.length === 0) return alert("🎉 沒有需要列印的封條！");
+        inventory.forEach(i => i.isPrinted = true);
+        renderData(); autoSaveToCloud();
+        triggerPrintHTML(unprinted);
+    }
+
+    function triggerPrintHTML(items) {
+        let html = '';
+        items.forEach(item => {
+            html += `<div class="seal-page"><div class="seal-header">✅ INVENTORY COMPLETED</div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:bold;"><span>${item.area||'未分區'}</span><span>2026年3月</span></div>
+            <div class="seal-code">${item.shortCode}</div><div style="text-align:center; font-weight:bold; font-size:16px;">${item.name}</div>
+            <div style="font-size:32px; font-weight:900; text-align:center; margin:15px 0;">${item.actualQty} <span style="font-size:14px;">${item.unit}</span></div>
+            <div style="font-size:12px; text-align:center; border-top:2px dashed black; padding-top:10px; font-weight:bold;">⚠️ 封條損毀即屬無效</div></div>`;
+        });
+        document.getElementById('printArea').innerHTML = html;
+        window.print();
+    }
+
+    function restoreCSV() {
+        const file = document.getElementById('csvUpload').files[0];
+        if(!file) return alert("請先選擇 CSV 檔案");
+        if(!confirm("⚠️ 警告：這將覆蓋雲端所有資料，確定執行？")) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const lines = e.target.result.split('\n');
+            let newInv = [];
+            for(let i=3; i<lines.length; i++) {
+                if(!lines[i].trim() || lines[i].includes('📊 總計')) continue;
+                const cols = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g).map(s => s.replace(/^"|"$/g, '').replace(/""/g, '"'));
+                let rawSku = cols[4] || "N/A";
+                let cleanSku = (rawSku.startsWith('="') && rawSku.endsWith('"')) ? rawSku.slice(2,-1) : rawSku;
+                
+                newInv.push({
+                    shortCode: cols[1], area: cols[2], category: cols[3], sku: cleanSku,
+                    name: cols[5], unit: cols[6], price: parseFloat(cols[7]) || 0,
+                    bookQty: 0, actualQty: parseInt(cols[8]) || 0, image: "", isPrinted: false
+                });
+            }
+            inventory = newInv;
+            renderData(); autoSaveToCloud();
+            alert("✅ CSV 還原成功！");
+        };
+        reader.readAsText(file);
+    }
+</script>
+</body>
+</html>
