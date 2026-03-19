@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v8.2</title>
+    <title>Moon Stocktake v8.3</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.18.2/package/dist/xlsx.full.min.js"></script>
     <style>
         :root { 
             --ios-bg: #F2F2F7; --ios-card: #FFFFFF; --ios-blue: #007AFF; 
@@ -52,6 +53,7 @@
         .action-btn { width: 100%; padding: 16px; border: none; border-radius: 14px; font-size: 17px; font-weight: 600; color: white; cursor: pointer; display: block; margin-top: 10px; }
         
         .btn-primary { background: linear-gradient(135deg, #007AFF, #0056b3); } 
+        .btn-excel { background: linear-gradient(135deg, #34C759, #28A745); } /* Excel專屬綠色 */
         .btn-ai { background: linear-gradient(135deg, #AF52DE, #5E5CE6); } 
         .btn-normal { background: var(--ios-orange); }
 
@@ -107,6 +109,7 @@
         <button class="desktop-nav-btn" id="d-nav-table" onclick="switchView('view-table')">📋 庫存總表</button>
         <button class="desktop-nav-btn" id="d-nav-add" onclick="switchView('view-add')">➕ 新增產品</button>
         <button class="action-btn" style="width:auto; margin:0; background:#333;" onclick="batchPrint()">🖨️ 印未印封條</button>
+        <button class="action-btn btn-excel" style="width:auto; margin:0;" onclick="exportExcel()">📊 下載會計報表 (Excel)</button>
     </div>
 
     <div id="view-add" class="view-section">
@@ -163,7 +166,10 @@
     </div>
 
     <div id="view-table" class="view-section">
-        <input type="text" id="search" class="ios-input" placeholder="🔍 搜尋名稱、SKU 或短碼..." style="margin-bottom:16px;" onkeyup="renderData()">
+        <div style="display:flex; gap:10px; margin-bottom:16px;" id="mobile-action-bar">
+            <input type="text" id="search" class="ios-input" placeholder="🔍 搜尋名稱、SKU..." onkeyup="renderData()" style="flex:2;">
+            <button class="action-btn btn-excel" style="margin:0; padding:0 15px; font-size:14px; flex:1;" onclick="exportExcel()">📊 匯出</button>
+        </div>
         
         <div class="premium-table-wrapper desktop-only-table">
             <table class="premium-table">
@@ -252,21 +258,23 @@
     let currentPhotoMode = 'normal';
 
     window.onload = async function() {
-        if (window.innerWidth >= 1024) { switchView('view-table'); } 
-        else { switchView('view-add'); }
+        if (window.innerWidth >= 1024) { 
+            switchView('view-table'); 
+            document.getElementById('mobile-action-bar').style.display = 'none'; // 電腦版隱藏手機專用按鈕列
+        } else { 
+            switchView('view-add'); 
+        }
         await syncData();
     };
 
-    // 🌟 核心防護功能：每 10 分鐘 (600,000 毫秒) 自動在背景抓取最新資料
+    // 背景靜默同步 (10分鐘)
     setInterval(() => {
-        // 安全檢查：如果使用者正在修改資料、看大圖、或掃描條碼，就不執行背景更新，以免打斷工作！
         const isEditModalOpen = document.getElementById('editModal').style.display === 'flex';
         const isImageModalOpen = document.getElementById('viewImageModal').style.display === 'flex';
         const isScanning = document.getElementById('skuReaderWrapper').style.display === 'block';
 
         if (!isEditModalOpen && !isImageModalOpen && !isScanning) {
-            console.log("🕒 執行 10 分鐘安全背景同步...");
-            syncData(); // 靜默呼叫同步函數，它會在畫面上閃一下「正在與雲端同步...」然後更新表格數字
+            syncData(); 
         }
     }, 600000);
 
@@ -289,7 +297,7 @@
             const data = await res.json();
             if (Array.isArray(data)) inventory = data;
             renderData();
-        } catch(e) { console.error("同步失敗，背景重試中"); }
+        } catch(e) { console.error("同步失敗"); }
         hideLoading();
     }
 
@@ -302,6 +310,85 @@
             });
         } catch(e) { console.error("Auto save failed", e); }
     }
+
+    // ==================== 🌟 專業會計 Excel 生成引擎 ====================
+    function exportExcel() {
+        if (inventory.length === 0) return alert("沒有資料可匯出！");
+        
+        showLoading("正在產生 Excel 會計報表...");
+        
+        setTimeout(() => { // 稍微延遲讓 loading 畫面顯示
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('zh-HK') + " " + now.toLocaleTimeString('zh-HK');
+            
+            let totalQty = 0;
+            let totalValue = 0;
+            
+            // 1. 建立報表標題與摘要列
+            const wsData = [
+                ["🌕 Moon Stocktake - 庫存盤點結算報告"],
+                ["報表產生時間:", dateStr],
+                [""], // 空行分隔
+                ["短碼", "SKU", "區域", "分類", "產品名稱", "單位", "單價(HKD)", "實盤數量", "總值(HKD)", "封條狀態"] // 欄位標頭
+            ];
+
+            // 2. 寫入資料與計算
+            inventory.forEach(item => {
+                const price = parseFloat(item.price) || 0;
+                const qty = parseInt(item.actualQty) || 0;
+                const lineTotal = price * qty;
+                
+                totalQty += qty;
+                totalValue += lineTotal;
+
+                wsData.push([
+                    item.shortCode || "",
+                    item.sku || "N/A",
+                    item.area || "未指定",
+                    item.category || "其他",
+                    item.name || "",
+                    item.unit || "件",
+                    price,
+                    qty,
+                    lineTotal,
+                    item.isPrinted ? "已印封條" : "未列印"
+                ]);
+            });
+
+            // 3. 加入最底部的「總計」列
+            wsData.push(["", "", "", "", "", "", "總計 (Total):", totalQty, totalValue, ""]);
+
+            // 4. 將陣列轉換為 SheetJS 工作表
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // 5. 設定完美欄寬
+            const wscols = [
+                {wch: 8},  // 短碼
+                {wch: 15}, // SKU
+                {wch: 12}, // 區域
+                {wch: 20}, // 分類
+                {wch: 40}, // 產品名稱 (最寬)
+                {wch: 8},  // 單位
+                {wch: 12}, // 單價
+                {wch: 10}, // 實盤數量
+                {wch: 15}, // 總值
+                {wch: 12}  // 封條狀態
+            ];
+            ws['!cols'] = wscols;
+
+            // 6. 建立 Excel 活頁簿並匯出下載
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "庫存結算總表");
+            
+            // 檔名加上日期，方便會計建檔
+            const dateForFilename = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}`;
+            const filename = `Moon_Stocktake_盤點報告_${dateForFilename}.xlsx`;
+            
+            XLSX.writeFile(wb, filename);
+            hideLoading();
+        }, 100);
+    }
+    // ====================================================================
 
     function triggerCamera(mode) {
         currentPhotoMode = mode;
