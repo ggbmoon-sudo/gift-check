@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v8.3</title>
+    <title>Moon Stocktake v8.4</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.18.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -45,15 +45,18 @@
         .tag-group { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
         .tag-area { background: #E5F0FF; color: #007AFF; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
         .tag-cat { background: #E8F5E9; color: #34C759; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+        .tag-expiry { background: #FFF4E5; color: var(--ios-orange); padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
 
         .form-group { margin-bottom: 12px; }
         .form-label { display: block; font-size: 13px; color: var(--ios-gray); margin-bottom: 6px; font-weight: 600;}
+        /* 針對日期選擇器優化 */
+        input[type="date"].ios-input { -webkit-appearance: none; min-height: 50px; }
         .ios-input, .ios-select { width: 100%; padding: 14px; background: var(--ios-card); border: 1px solid #D1D1D6; border-radius: 12px; font-size: 16px; outline: none; }
         .form-row { display: flex; gap: 10px; }
         .action-btn { width: 100%; padding: 16px; border: none; border-radius: 14px; font-size: 17px; font-weight: 600; color: white; cursor: pointer; display: block; margin-top: 10px; }
         
         .btn-primary { background: linear-gradient(135deg, #007AFF, #0056b3); } 
-        .btn-excel { background: linear-gradient(135deg, #34C759, #28A745); } /* Excel專屬綠色 */
+        .btn-excel { background: linear-gradient(135deg, #34C759, #28A745); }
         .btn-ai { background: linear-gradient(135deg, #AF52DE, #5E5CE6); } 
         .btn-normal { background: var(--ios-orange); }
 
@@ -139,6 +142,7 @@
         <div id="skuReaderWrapper" style="display:none; margin-bottom:15px;"><div id="skuReader" style="width:100%; border-radius:16px; overflow:hidden;"></div></div>
 
         <div class="form-group"><label class="form-label">產品名稱 (必填)</label><input type="text" id="add-name" class="ios-input" placeholder="請確認或輸入"></div>
+        
         <div class="form-row">
             <div class="form-group" style="flex: 1;">
                 <label class="form-label">分類</label>
@@ -157,9 +161,15 @@
             </div>
             <div class="form-group" style="flex: 1;"><label class="form-label">單位</label><select id="add-unit" class="ios-select"><option value="件">件</option><option value="箱">箱</option><option value="樽">樽</option><option value="套">套</option></select></div>
         </div>
+        
         <div class="form-row">
             <div class="form-group" style="flex: 1;"><label class="form-label">單價 ($)</label><input type="number" id="add-price" class="ios-input" placeholder="留空將特別標示" inputmode="decimal"></div>
             <div class="form-group" style="flex: 1;"><label class="form-label">實盤數量</label><input type="number" id="add-qty" class="ios-input" value="0" inputmode="numeric"></div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">到期日 (Expiry Date)</label>
+            <input type="date" id="add-expiry" class="ios-input" placeholder="年/月/日 (可留空)">
         </div>
         
         <button class="action-btn btn-primary" onclick="saveProduct()">💾 確認儲存並加入總表</button>
@@ -173,20 +183,12 @@
         
         <div class="premium-table-wrapper desktop-only-table">
             <table class="premium-table">
-                <thead><tr><th>短碼</th><th>圖片</th><th>名稱 / SKU</th><th>區域 / 分類</th><th>單價</th><th>數量</th><th style="text-align:center;">操作</th></tr></thead>
+                <thead><tr><th>短碼</th><th>圖片</th><th>名稱 / SKU</th><th>區域 / 分類</th><th>到期日</th><th>單價</th><th>數量</th><th style="text-align:center;">操作</th></tr></thead>
                 <tbody id="desktopTableBody"></tbody>
             </table>
         </div>
 
         <div id="mobileListBody" style="margin-top: 10px;"></div>
-
-        <details style="margin-top: 40px; color: var(--ios-gray);">
-            <summary style="cursor:pointer; font-weight:600;">🛠️ 進階：上傳 CSV 備份還原</summary>
-            <div style="padding: 15px; background:var(--ios-card); border-radius:12px; margin-top:10px;">
-                <input type="file" id="csvUpload" accept=".csv" style="margin-bottom:10px;"><br>
-                <button onclick="restoreCSV()" style="background:var(--ios-red); color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:bold;">🚨 強制覆蓋還原</button>
-            </div>
-        </details>
     </div>
 </div>
 
@@ -219,6 +221,12 @@
             <div class="form-group" style="flex: 1;"><label class="form-label">單價 ($)</label><input type="number" id="edit-price" class="ios-input" inputmode="decimal"></div>
             <div class="form-group" style="flex: 1;"><label class="form-label">SKU</label><input type="text" id="edit-sku" class="ios-input"></div>
         </div>
+        
+        <div class="form-group">
+            <label class="form-label">到期日</label>
+            <input type="date" id="edit-expiry" class="ios-input">
+        </div>
+
         <div class="form-row">
             <div class="form-group" style="flex: 1;"><label class="form-label">區域</label><input type="text" id="edit-area" class="ios-input"></div>
             <div class="form-group" style="flex: 1;">
@@ -260,14 +268,13 @@
     window.onload = async function() {
         if (window.innerWidth >= 1024) { 
             switchView('view-table'); 
-            document.getElementById('mobile-action-bar').style.display = 'none'; // 電腦版隱藏手機專用按鈕列
+            document.getElementById('mobile-action-bar').style.display = 'none';
         } else { 
             switchView('view-add'); 
         }
         await syncData();
     };
 
-    // 背景靜默同步 (10分鐘)
     setInterval(() => {
         const isEditModalOpen = document.getElementById('editModal').style.display === 'flex';
         const isImageModalOpen = document.getElementById('viewImageModal').style.display === 'flex';
@@ -311,28 +318,26 @@
         } catch(e) { console.error("Auto save failed", e); }
     }
 
-    // ==================== 🌟 專業會計 Excel 生成引擎 ====================
     function exportExcel() {
         if (inventory.length === 0) return alert("沒有資料可匯出！");
         
         showLoading("正在產生 Excel 會計報表...");
         
-        setTimeout(() => { // 稍微延遲讓 loading 畫面顯示
+        setTimeout(() => {
             const now = new Date();
             const dateStr = now.toLocaleDateString('zh-HK') + " " + now.toLocaleTimeString('zh-HK');
             
             let totalQty = 0;
             let totalValue = 0;
             
-            // 1. 建立報表標題與摘要列
             const wsData = [
                 ["🌕 Moon Stocktake - 庫存盤點結算報告"],
                 ["報表產生時間:", dateStr],
-                [""], // 空行分隔
-                ["短碼", "SKU", "區域", "分類", "產品名稱", "單位", "單價(HKD)", "實盤數量", "總值(HKD)", "封條狀態"] // 欄位標頭
+                [""], 
+                // 🌟 Excel 表頭加入到期日
+                ["短碼", "SKU", "區域", "分類", "產品名稱", "單位", "單價(HKD)", "實盤數量", "總值(HKD)", "到期日", "封條狀態"] 
             ];
 
-            // 2. 寫入資料與計算
             inventory.forEach(item => {
                 const price = parseFloat(item.price) || 0;
                 const qty = parseInt(item.actualQty) || 0;
@@ -351,36 +356,24 @@
                     price,
                     qty,
                     lineTotal,
+                    item.expiryDate || "", // 🌟 寫入到期日資料
                     item.isPrinted ? "已印封條" : "未列印"
                 ]);
             });
 
-            // 3. 加入最底部的「總計」列
-            wsData.push(["", "", "", "", "", "", "總計 (Total):", totalQty, totalValue, ""]);
+            wsData.push(["", "", "", "", "", "", "總計 (Total):", totalQty, totalValue, "", ""]);
 
-            // 4. 將陣列轉換為 SheetJS 工作表
             const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-            // 5. 設定完美欄寬
             const wscols = [
-                {wch: 8},  // 短碼
-                {wch: 15}, // SKU
-                {wch: 12}, // 區域
-                {wch: 20}, // 分類
-                {wch: 40}, // 產品名稱 (最寬)
-                {wch: 8},  // 單位
-                {wch: 12}, // 單價
-                {wch: 10}, // 實盤數量
-                {wch: 15}, // 總值
-                {wch: 12}  // 封條狀態
+                {wch: 8},  {wch: 15}, {wch: 12}, {wch: 20}, {wch: 40}, 
+                {wch: 8},  {wch: 12}, {wch: 10}, {wch: 15}, {wch: 12}, {wch: 12} // 設定欄寬
             ];
             ws['!cols'] = wscols;
 
-            // 6. 建立 Excel 活頁簿並匯出下載
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "庫存結算總表");
             
-            // 檔名加上日期，方便會計建檔
             const dateForFilename = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}`;
             const filename = `Moon_Stocktake_盤點報告_${dateForFilename}.xlsx`;
             
@@ -388,7 +381,6 @@
             hideLoading();
         }, 100);
     }
-    // ====================================================================
 
     function triggerCamera(mode) {
         currentPhotoMode = mode;
@@ -422,7 +414,8 @@
                         headers: { "Content-Type": "text/plain;charset=utf-8" },
                         body: JSON.stringify({
                             action: 'gemini', 
-                            prompt: '香港建檔助手。請自動填表，估算單價(HKD)。只輸出純JSON格式，不要有任何其他文字或Markdown標籤。嚴格格式：{"name":"名稱","category":"分類","unit":"件/箱/樽/套","sku":"條碼","price":數字}，分類包含HAMPER。', 
+                            // 🌟 升級 AI 提示詞，讓它嘗試抓取到期日
+                            prompt: '香港建檔助手。請自動填表，估算單價(HKD)。只輸出純JSON格式，不要有任何其他文字或Markdown標籤。嚴格格式：{"name":"名稱","category":"分類","unit":"件/箱/樽/套","sku":"條碼","price":數字,"expiryDate":"YYYY-MM-DD或空"}，分類包含HAMPER。', 
                             image: b64.split(',')[1]
                         })
                     });
@@ -439,6 +432,7 @@
                     if(aiData.name) document.getElementById('add-name').value = aiData.name;
                     if(aiData.sku && aiData.sku !== "N/A") document.getElementById('add-sku').value = aiData.sku;
                     if(aiData.price) document.getElementById('add-price').value = aiData.price;
+                    if(aiData.expiryDate) document.getElementById('add-expiry').value = aiData.expiryDate; // AI 抓取日期
                     
                     if(aiData.category) {
                         const catSelect = document.getElementById('add-cat');
@@ -468,6 +462,7 @@
         
         const compressedBase64 = document.getElementById('tempImageData').value;
         const priceVal = parseFloat(document.getElementById('add-price').value);
+        const expiryDateVal = document.getElementById('add-expiry').value; // 取得日期
         
         inventory.unshift({ 
             shortCode: Math.random().toString(36).substring(2,6).toUpperCase(),
@@ -480,12 +475,13 @@
             bookQty: 0,
             actualQty: parseInt(document.getElementById('add-qty').value) || 0,
             image: compressedBase64,
-            isPrinted: false
+            isPrinted: false,
+            expiryDate: expiryDateVal // 🌟 存入物件
         });
 
         await autoSaveToCloud();
         
-        ['add-name','add-sku','add-price','add-qty','tempImageData'].forEach(id => document.getElementById(id).value = '');
+        ['add-name','add-sku','add-price','add-qty','add-expiry','tempImageData'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('previewImage').style.display = 'none';
         
         hideLoading();
@@ -518,6 +514,7 @@
         document.getElementById('edit-price').value = item.price || '';
         document.getElementById('edit-sku').value = item.sku || '';
         document.getElementById('edit-area').value = item.area || '';
+        document.getElementById('edit-expiry').value = item.expiryDate || ''; // 🌟 載入日期
         
         const catSelect = document.getElementById('edit-cat');
         let found = false;
@@ -556,6 +553,7 @@
         inventory[index].sku = document.getElementById('edit-sku').value || "N/A";
         inventory[index].area = document.getElementById('edit-area').value || "未指定";
         inventory[index].category = document.getElementById('edit-cat').value;
+        inventory[index].expiryDate = document.getElementById('edit-expiry').value || ""; // 🌟 儲存修改的日期
 
         if (document.getElementById('edit-reset-print').checked) {
             inventory[index].isPrinted = false;
@@ -593,6 +591,10 @@
                     : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
                 
                 const printBtn = item.isPrinted ? '✅' : '🖨️';
+                
+                // 🌟 到期日顯示邏輯
+                const expiryHtmlDesktop = item.expiryDate ? `<span style="color:var(--ios-gray); font-size:13px;">📅 ${item.expiryDate}</span>` : `<span style="color:#CCC;">-</span>`;
+                const expiryHtmlMobile = item.expiryDate ? `<span class="tag-expiry">📅 ${item.expiryDate}</span>` : '';
 
                 dBody.innerHTML += `
                     <tr class="${rowClass}">
@@ -600,7 +602,7 @@
                         <td style="text-align:center;">${imgHtml}</td>
                         <td><b style="font-size:15px;">${item.name}</b><br><span style="font-size:12px; color:var(--ios-gray);">SKU: ${item.sku}</span></td>
                         <td>${item.area} <span style="color:var(--ios-gray);">/ ${item.category}</span></td>
-                        <td>${priceText}</td>
+                        <td>${expiryHtmlDesktop}</td> <td>${priceText}</td>
                         <td>
                             <div class="stepper">
                                 <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
@@ -622,7 +624,7 @@
                             <div class="tag-group">
                                 <span class="tag-area">📍 ${item.area || '未分區'}</span>
                                 <span class="tag-cat">🏷️ ${item.category}</span>
-                            </div>
+                                ${expiryHtmlMobile} </div>
                             <span style="font-family:monospace; font-weight:bold; font-size:14px; background:var(--ios-light-gray); padding:2px 6px; border-radius:4px;">${item.shortCode}</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -703,34 +705,6 @@
         });
         document.getElementById('printArea').innerHTML = html;
         window.print();
-    }
-
-    function restoreCSV() {
-        const file = document.getElementById('csvUpload').files[0];
-        if(!file) return alert("請先選擇 CSV 檔案");
-        if(!confirm("⚠️ 警告：這將覆蓋雲端所有資料，確定執行？")) return;
-        
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const lines = e.target.result.split('\n');
-            let newInv = [];
-            for(let i=3; i<lines.length; i++) {
-                if(!lines[i].trim() || lines[i].includes('📊 總計')) continue;
-                const cols = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g).map(s => s.replace(/^"|"$/g, '').replace(/""/g, '"'));
-                let rawSku = cols[4] || "N/A";
-                let cleanSku = (rawSku.startsWith('="') && rawSku.endsWith('"')) ? rawSku.slice(2,-1) : rawSku;
-                
-                newInv.push({
-                    shortCode: cols[1], area: cols[2], category: cols[3], sku: cleanSku,
-                    name: cols[5], unit: cols[6], price: parseFloat(cols[7]) || 0,
-                    bookQty: 0, actualQty: parseInt(cols[8]) || 0, image: "", isPrinted: false
-                });
-            }
-            inventory = newInv;
-            renderData(); autoSaveToCloud();
-            alert("✅ CSV 還原成功！");
-        };
-        reader.readAsText(file);
     }
 </script>
 </body>
