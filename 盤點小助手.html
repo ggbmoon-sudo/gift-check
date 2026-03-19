@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v8.1</title>
+    <title>Moon Stocktake v8.2</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { 
@@ -244,6 +244,7 @@
 </div>
 
 <script>
+    // ⚠️ 記得替換成你最新發布的 GAS 網址！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
     
     let inventory = [];
@@ -255,6 +256,19 @@
         else { switchView('view-add'); }
         await syncData();
     };
+
+    // 🌟 核心防護功能：每 10 分鐘 (600,000 毫秒) 自動在背景抓取最新資料
+    setInterval(() => {
+        // 安全檢查：如果使用者正在修改資料、看大圖、或掃描條碼，就不執行背景更新，以免打斷工作！
+        const isEditModalOpen = document.getElementById('editModal').style.display === 'flex';
+        const isImageModalOpen = document.getElementById('viewImageModal').style.display === 'flex';
+        const isScanning = document.getElementById('skuReaderWrapper').style.display === 'block';
+
+        if (!isEditModalOpen && !isImageModalOpen && !isScanning) {
+            console.log("🕒 執行 10 分鐘安全背景同步...");
+            syncData(); // 靜默呼叫同步函數，它會在畫面上閃一下「正在與雲端同步...」然後更新表格數字
+        }
+    }, 600000);
 
     function switchView(viewId) {
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
@@ -275,7 +289,7 @@
             const data = await res.json();
             if (Array.isArray(data)) inventory = data;
             renderData();
-        } catch(e) { alert("同步失敗，請檢查網路。"); }
+        } catch(e) { console.error("同步失敗，背景重試中"); }
         hideLoading();
     }
 
@@ -410,7 +424,6 @@
         }
     }
 
-    // ==================== 編輯功能控制 (支援列印重置) ====================
     function openEditModal(index) {
         const item = inventory[index];
         document.getElementById('edit-index').value = index;
@@ -429,12 +442,11 @@
         }
         if(!found) catSelect.selectedIndex = 9; 
         
-        // 🌟 判斷是否顯示「重置列印」選項
         const printResetContainer = document.getElementById('print-reset-container');
         const printResetCheckbox = document.getElementById('edit-reset-print');
         if (item.isPrinted) {
             printResetContainer.style.display = 'block';
-            printResetCheckbox.checked = false; // 預設不勾選，保留原列印狀態
+            printResetCheckbox.checked = false; 
         } else {
             printResetContainer.style.display = 'none';
             printResetCheckbox.checked = false;
@@ -458,7 +470,6 @@
         inventory[index].area = document.getElementById('edit-area').value || "未指定";
         inventory[index].category = document.getElementById('edit-cat').value;
 
-        // 🌟 如果使用者勾選了「重新列印封條」，就將狀態重置
         if (document.getElementById('edit-reset-print').checked) {
             inventory[index].isPrinted = false;
         }
