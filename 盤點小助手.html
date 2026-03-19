@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v7.1 </title>
+    <title>Moon Stocktake v8.1</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { 
@@ -93,7 +93,7 @@
 <body>
 
 <div class="sticky-header">
-    <h1 class="header-title">Moon Stocktake v7.1</h1>
+    <h1 class="header-title">🌕 Moon Stocktake</h1>
     <div class="dashboard">
         <div class="total-box"><span style="font-size: 12px; color: var(--ios-gray); font-weight: 600;">資產總值</span><span class="total-val" id="grandTotal">$0</span></div>
         <div style="display:flex; gap:10px;">
@@ -232,12 +232,18 @@
             </div>
         </div>
         
+        <div id="print-reset-container" style="display:none; background:#FFF5F5; padding:12px; border-radius:10px; border:1px solid #FFD6D6; margin-top:10px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; color:var(--ios-red); font-weight:600;">
+                <input type="checkbox" id="edit-reset-print" style="width:20px; height:20px; accent-color:var(--ios-red);">
+                需要重新列印封條嗎？(設為未列印)
+            </label>
+        </div>
+        
         <button class="action-btn btn-primary" onclick="saveEditProduct()">💾 儲存修改</button>
     </div>
 </div>
 
 <script>
-    // ⚠️ 記得替換成你最新發布的 GAS 網址！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
     
     let inventory = [];
@@ -396,7 +402,6 @@
         }
     }
 
-    // ==================== 圖片彈出視窗控制 ====================
     function viewImage(index) {
         const item = inventory[index];
         if (item.image) {
@@ -405,7 +410,7 @@
         }
     }
 
-    // ==================== 編輯功能控制 ====================
+    // ==================== 編輯功能控制 (支援列印重置) ====================
     function openEditModal(index) {
         const item = inventory[index];
         document.getElementById('edit-index').value = index;
@@ -414,7 +419,6 @@
         document.getElementById('edit-sku').value = item.sku || '';
         document.getElementById('edit-area').value = item.area || '';
         
-        // 嘗試選中對應分類
         const catSelect = document.getElementById('edit-cat');
         let found = false;
         for(let i=0; i<catSelect.options.length; i++) {
@@ -423,8 +427,19 @@
                 found = true; break;
             }
         }
-        if(!found) catSelect.selectedIndex = 9; // 預設「其他」
+        if(!found) catSelect.selectedIndex = 9; 
         
+        // 🌟 判斷是否顯示「重置列印」選項
+        const printResetContainer = document.getElementById('print-reset-container');
+        const printResetCheckbox = document.getElementById('edit-reset-print');
+        if (item.isPrinted) {
+            printResetContainer.style.display = 'block';
+            printResetCheckbox.checked = false; // 預設不勾選，保留原列印狀態
+        } else {
+            printResetContainer.style.display = 'none';
+            printResetCheckbox.checked = false;
+        }
+
         document.getElementById('editModal').style.display = 'flex';
     }
 
@@ -442,6 +457,11 @@
         inventory[index].sku = document.getElementById('edit-sku').value || "N/A";
         inventory[index].area = document.getElementById('edit-area').value || "未指定";
         inventory[index].category = document.getElementById('edit-cat').value;
+
+        // 🌟 如果使用者勾選了「重新列印封條」，就將狀態重置
+        if (document.getElementById('edit-reset-print').checked) {
+            inventory[index].isPrinted = false;
+        }
 
         document.getElementById('editModal').style.display = 'none';
         
