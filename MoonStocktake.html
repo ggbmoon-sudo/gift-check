@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v9.2</title>
+    <title>Moon Stocktake v9.3</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.18.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -347,10 +347,14 @@
                 const qty = parseInt(item.actualQty) || 0;
                 const lineTotal = price * qty;
                 totalQty += qty; totalValue += lineTotal;
+                
+                // 🌟 Excel 匯出日期修復
+                let cleanExpiry = item.expiryDate || "";
+                if (cleanExpiry.includes("T")) cleanExpiry = cleanExpiry.split("T")[0];
 
                 wsData.push([
                     item.shortCode || "", item.sku || "N/A", item.area || "未指定", item.category || "其他",
-                    item.name || "", item.unit || "件", price, qty, lineTotal, item.expiryDate || "", 
+                    item.name || "", item.unit || "件", price, qty, lineTotal, cleanExpiry, 
                     item.isPrinted ? "已印封條" : "未列印"
                 ]);
             });
@@ -385,6 +389,13 @@
                 rows.forEach(row => {
                     if (!row["產品名稱"] || row["產品名稱"] === "總計 (Total):") return;
                     const shortCode = row["短碼"];
+                    
+                    // 🌟 處理 Excel 匯入的日期亂碼
+                    let parsedExpiry = row["到期日"] || "";
+                    if (typeof parsedExpiry === 'string' && parsedExpiry.includes('T')) {
+                        parsedExpiry = parsedExpiry.split('T')[0];
+                    }
+                    
                     const existingItem = inventory.find(i => i.shortCode === shortCode);
 
                     if (existingItem) {
@@ -395,7 +406,7 @@
                         existingItem.unit = row["單位"] || "件";
                         existingItem.price = parseFloat(row["單價(HKD)"]) || 0;
                         existingItem.actualQty = parseInt(row["實盤數量"]) || 0;
-                        existingItem.expiryDate = row["到期日"] || "";
+                        existingItem.expiryDate = parsedExpiry;
                         existingItem.isPrinted = row["封條狀態"] === "已印封條";
                         updatedCount++;
                     } else {
@@ -404,7 +415,7 @@
                             name: row["產品名稱"], sku: row["SKU"] !== "N/A" ? row["SKU"] : "N/A",
                             area: row["區域"] || "未指定", category: row["分類"] || "其他", unit: row["單位"] || "件",
                             price: parseFloat(row["單價(HKD)"]) || 0, actualQty: parseInt(row["實盤數量"]) || 0,
-                            expiryDate: row["到期日"] || "", isPrinted: row["封條狀態"] === "已印封條",
+                            expiryDate: parsedExpiry, isPrinted: row["封條狀態"] === "已印封條",
                             image: "", bookQty: 0
                         });
                         addedCount++;
@@ -548,7 +559,11 @@
         document.getElementById('edit-price').value = item.price || '';
         document.getElementById('edit-sku').value = item.sku || '';
         document.getElementById('edit-area').value = item.area || '';
-        document.getElementById('edit-expiry').value = item.expiryDate || '';
+        
+        // 🌟 修復日期格式：如果編輯器打開時有 T，確保濾掉
+        let cleanDate = item.expiryDate || '';
+        if(cleanDate.includes('T')) cleanDate = cleanDate.split('T')[0];
+        document.getElementById('edit-expiry').value = cleanDate;
         
         const catSelect = document.getElementById('edit-cat');
         let found = false;
@@ -585,15 +600,10 @@
         }
 
         document.getElementById('editModal').style.display = 'none';
-        
-        // 🌟 更新 UI 瞬間完成
         renderData();      
-        
-        // 🌟 背景靜默同步
         syncSingleItem("update_item", inventory[index]);
     }
 
-    // 🌟 核心提速區：改用「字串組合後一次渲染」取代「迴圈中頻繁修改 HTML」
     function renderData() {
         const query = document.getElementById('search').value.toLowerCase();
         const dBody = document.getElementById('desktopTableBody');
@@ -607,15 +617,18 @@
             const itemTotal = (item.price || 0) * (item.actualQty || 0);
             total += itemTotal;
 
-            // 搜尋字串快取，加速比對
             const searchStr = `${item.name} ${item.sku} ${item.shortCode} ${item.area} ${item.category}`.toLowerCase();
 
             if (searchStr.includes(query)) {
                 
+                const unitStr = item.unit || '件'; // 🌟 取得輸入的單位
+                
                 const isMissingPrice = !item.price || item.price === 0;
+                // 🌟 在單價旁邊加入單位顯示 (例如：/ 箱)
                 const priceText = isMissingPrice 
-                    ? `<div class="price-container"><span style="color:var(--ios-red);font-weight:bold;">$0</span> <span class="alert-badge">⚠️ 需補單價</span></div>` 
-                    : `<div class="price-container"><span>$${item.price}</span></div>`;
+                    ? `<div class="price-container"><span style="color:var(--ios-red);font-weight:bold;">$0</span> <span style="font-size:12px; color:var(--ios-gray);">/ ${unitStr}</span> <span class="alert-badge">⚠️ 需補單價</span></div>` 
+                    : `<div class="price-container"><span style="font-weight:600;">$${item.price}</span> <span style="font-size:12px; color:var(--ios-gray);">/ ${unitStr}</span></div>`;
+                
                 const rowClass = isMissingPrice ? "missing-price-row" : "";
                 
                 const imgHtml = item.image 
@@ -623,10 +636,13 @@
                     : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
                 const printBtn = item.isPrinted ? '✅' : '🖨️';
                 
-                const expiryHtmlDesktop = item.expiryDate ? `<span style="color:var(--ios-gray); font-size:13px;">📅 ${item.expiryDate}</span>` : `<span style="color:#CCC;">-</span>`;
-                const expiryHtmlMobile = item.expiryDate ? `<span class="tag-expiry">📅 ${item.expiryDate}</span>` : '';
+                // 🌟 確保畫面上的日期不會有亂碼
+                let cleanExpiry = item.expiryDate || '';
+                if(cleanExpiry.includes('T')) cleanExpiry = cleanExpiry.split('T')[0];
 
-                // 準備電腦版 HTML 字串
+                const expiryHtmlDesktop = cleanExpiry ? `<span style="color:var(--ios-gray); font-size:13px;">📅 ${cleanExpiry}</span>` : `<span style="color:#CCC;">-</span>`;
+                const expiryHtmlMobile = cleanExpiry ? `<span class="tag-expiry">📅 ${cleanExpiry}</span>` : '';
+
                 dHTML += `
                     <tr class="${rowClass}">
                         <td><span style="font-family:monospace; font-weight:bold; background:var(--ios-light-gray); padding:4px 8px; border-radius:6px;">${item.shortCode}</span></td>
@@ -636,10 +652,13 @@
                         <td>${expiryHtmlDesktop}</td>
                         <td>${priceText}</td>
                         <td>
-                            <div class="stepper">
-                                <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
-                                <input class="qty-input" value="${item.actualQty}" readonly>
-                                <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <div class="stepper">
+                                    <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
+                                    <input class="qty-input" value="${item.actualQty}" readonly>
+                                    <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
+                                </div>
+                                <span style="font-size:14px; font-weight:bold; color:var(--ios-gray);">${unitStr}</span>
                             </div>
                         </td>
                         <td style="text-align:center; white-space:nowrap;">
@@ -650,7 +669,6 @@
                     </tr>
                 `;
 
-                // 準備手機版 HTML 字串
                 mHTML += `
                     <div class="ios-card ${rowClass ? 'missing-price-row' : ''}" style="border: ${isMissingPrice ? '1px solid #FFD6D6' : 'none'}">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
@@ -669,10 +687,13 @@
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             ${priceText}
                             <div style="display:flex; align-items:center; gap:10px;">
-                                <div class="stepper">
-                                    <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
-                                    <div style="font-weight:bold; padding:0 10px;">${item.actualQty}</div>
-                                    <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
+                                <div style="display:flex; align-items:center; gap:6px;">
+                                    <div class="stepper">
+                                        <button class="stepper-btn" onclick="adjustQty(${index},-1)">-</button>
+                                        <div style="font-weight:bold; padding:0 10px;">${item.actualQty}</div>
+                                        <button class="stepper-btn" onclick="adjustQty(${index},1)">+</button>
+                                    </div>
+                                    <span style="font-size:13px; font-weight:bold; color:var(--ios-gray);">${unitStr}</span>
                                 </div>
                                 <button class="icon-btn-action" style="color:var(--ios-blue); margin:0;" onclick="openEditModal(${index})" title="編輯">✏️</button>
                                 <button class="icon-btn-action" style="color:var(--ios-red); margin:0;" onclick="deleteProduct(${index})" title="刪除">🗑️</button>
@@ -683,7 +704,6 @@
             }
         });
         
-        // 🌟 只渲染 DOM 一次！這就是擺脫 20 秒卡頓的魔法！
         dBody.innerHTML = dHTML;
         mBody.innerHTML = mHTML;
         document.getElementById('grandTotal').innerText = `$${total.toLocaleString()}`;
