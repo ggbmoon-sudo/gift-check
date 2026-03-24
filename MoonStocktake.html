@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v9.1</title>
+    <title>Moon Stocktake v9.2</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.18.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -24,7 +24,6 @@
         .total-box { display: flex; flex-direction: column; }
         .total-val { font-size: 22px; font-weight: 700; color: var(--ios-blue); }
         
-        /* 🌟 背景同步指示燈 */
         .sync-status { width: 10px; height: 10px; border-radius: 50%; background: var(--ios-green); display: inline-block; margin-right: 5px; transition: background 0.3s; }
         .sync-status.syncing { background: var(--ios-orange); animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0.5; } }
@@ -315,7 +314,6 @@
         if(!isSilent) hideLoading();
     }
 
-    // 🌟 單筆極速背景同步引擎 (Zero Block)
     function syncSingleItem(action, itemOrShortCode) {
         const indicator = document.getElementById('syncIndicator');
         indicator.classList.add('syncing');
@@ -324,7 +322,6 @@
         if (action === "delete_item") { payload.shortCode = itemOrShortCode; } 
         else { payload.item = itemOrShortCode; }
 
-        // 發射後不理會 (Fire and forget)，完全不阻擋網頁運作
         fetch(GAS_URL, { 
             method: "POST", 
             headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -494,7 +491,6 @@
         img.src = URL.createObjectURL(file);
     }
 
-    // 🌟 極速儲存：零等待時間
     function saveProduct() {
         const name = document.getElementById('add-name').value;
         if (!name) return alert("產品名稱不可空白！");
@@ -526,7 +522,6 @@
         if(window.innerWidth >= 1024) switchView('view-table'); 
         else renderData();
 
-        // 呼叫背景單筆同步
         syncSingleItem("add_item", newItem);
     }
 
@@ -535,7 +530,6 @@
             const code = inventory[index].shortCode;
             inventory.splice(index, 1);
             renderData();
-            // 呼叫背景單筆刪除
             syncSingleItem("delete_item", code);
         }
     }
@@ -573,7 +567,6 @@
         document.getElementById('editModal').style.display = 'flex';
     }
 
-    // 🌟 極速修改：瞬間關閉視窗，無須等待！
     function saveEditProduct() {
         const index = document.getElementById('edit-index').value;
         const newName = document.getElementById('edit-name').value;
@@ -591,26 +584,33 @@
             inventory[index].isPrinted = false;
         }
 
-        // 瞬間關閉視窗、更新畫面
         document.getElementById('editModal').style.display = 'none';
+        
+        // 🌟 更新 UI 瞬間完成
         renderData();      
         
-        // 呼叫背景單筆同步
+        // 🌟 背景靜默同步
         syncSingleItem("update_item", inventory[index]);
     }
 
+    // 🌟 核心提速區：改用「字串組合後一次渲染」取代「迴圈中頻繁修改 HTML」
     function renderData() {
         const query = document.getElementById('search').value.toLowerCase();
         const dBody = document.getElementById('desktopTableBody');
         const mBody = document.getElementById('mobileListBody');
-        dBody.innerHTML = ''; mBody.innerHTML = '';
+        
         let total = 0;
+        let dHTML = '';
+        let mHTML = '';
 
         inventory.forEach((item, index) => {
             const itemTotal = (item.price || 0) * (item.actualQty || 0);
             total += itemTotal;
 
-            if (Object.values(item).some(val => String(val).toLowerCase().includes(query))) {
+            // 搜尋字串快取，加速比對
+            const searchStr = `${item.name} ${item.sku} ${item.shortCode} ${item.area} ${item.category}`.toLowerCase();
+
+            if (searchStr.includes(query)) {
                 
                 const isMissingPrice = !item.price || item.price === 0;
                 const priceText = isMissingPrice 
@@ -626,7 +626,8 @@
                 const expiryHtmlDesktop = item.expiryDate ? `<span style="color:var(--ios-gray); font-size:13px;">📅 ${item.expiryDate}</span>` : `<span style="color:#CCC;">-</span>`;
                 const expiryHtmlMobile = item.expiryDate ? `<span class="tag-expiry">📅 ${item.expiryDate}</span>` : '';
 
-                dBody.innerHTML += `
+                // 準備電腦版 HTML 字串
+                dHTML += `
                     <tr class="${rowClass}">
                         <td><span style="font-family:monospace; font-weight:bold; background:var(--ios-light-gray); padding:4px 8px; border-radius:6px;">${item.shortCode}</span></td>
                         <td style="text-align:center;">${imgHtml}</td>
@@ -649,7 +650,8 @@
                     </tr>
                 `;
 
-                mBody.innerHTML += `
+                // 準備手機版 HTML 字串
+                mHTML += `
                     <div class="ios-card ${rowClass ? 'missing-price-row' : ''}" style="border: ${isMissingPrice ? '1px solid #FFD6D6' : 'none'}">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
                             <div class="tag-group">
@@ -680,6 +682,10 @@
                 `;
             }
         });
+        
+        // 🌟 只渲染 DOM 一次！這就是擺脫 20 秒卡頓的魔法！
+        dBody.innerHTML = dHTML;
+        mBody.innerHTML = mHTML;
         document.getElementById('grandTotal').innerText = `$${total.toLocaleString()}`;
     }
 
@@ -694,7 +700,6 @@
             const indicator = document.getElementById('syncIndicator');
             indicator.classList.add('syncing');
 
-            // 防抖同步
             clearTimeout(window[`qtyTimer_${item.shortCode}`]);
             window[`qtyTimer_${item.shortCode}`] = setTimeout(() => {
                 fetch(GAS_URL, {
