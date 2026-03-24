@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v8.5</title>
+    <title>Moon Stocktake v9.0 (極速同步版)</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.18.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -24,7 +24,7 @@
         .total-box { display: flex; flex-direction: column; }
         .total-val { font-size: 22px; font-weight: 700; color: var(--ios-blue); }
         
-        /* 背景同步指示燈 */
+        /* 🌟 背景同步指示燈 */
         .sync-status { width: 10px; height: 10px; border-radius: 50%; background: var(--ios-green); display: inline-block; margin-right: 5px; transition: background 0.3s; }
         .sync-status.syncing { background: var(--ios-orange); animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0.5; } }
@@ -267,15 +267,12 @@
 </div>
 
 <script>
+    // ⚠️ 記得替換成你最新發布的 GAS 網址！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
     
     let inventory = [];
     let skuScanner = null;
     let currentPhotoMode = 'normal';
-
-    // 🌟 革命 1：防抖同步引擎 (Debounce Sync)
-    let syncTimeout = null;
-    let isSyncing = false;
 
     window.onload = async function() {
         if (window.innerWidth >= 1024) { 
@@ -284,16 +281,6 @@
         } else { switchView('view-add'); }
         await forceSync();
     };
-
-    // 10 分鐘強制背景同步
-    setInterval(() => {
-        const isEditModalOpen = document.getElementById('editModal').style.display === 'flex';
-        const isImageModalOpen = document.getElementById('viewImageModal').style.display === 'flex';
-        const isScanning = document.getElementById('skuReaderWrapper').style.display === 'block';
-        if (!isEditModalOpen && !isImageModalOpen && !isScanning && !isSyncing) {
-            forceSync(true); 
-        }
-    }, 600000);
 
     function switchView(viewId) {
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
@@ -307,40 +294,35 @@
     function showLoading(text) { document.getElementById('loadingText').innerText = text; document.getElementById('loadingOverlay').style.display = 'flex'; }
     function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
 
-    async function forceSync(isSilent = false) {
-        if(!isSilent) showLoading("正在從雲端下載最新資料...");
+    // ==================== 🌟 極速後台通訊模組 ====================
+    async function forceSync() {
+        showLoading("正在從雲端下載最新資料...");
         try {
             const res = await fetch(GAS_URL + "?t=" + new Date().getTime());
             const data = await res.json();
             if (Array.isArray(data)) inventory = data;
             renderData();
         } catch(e) { console.error("同步失敗"); }
-        if(!isSilent) hideLoading();
+        hideLoading();
     }
 
-    // 🌟 核心提速：UI 秒更新，背景才存檔
-    function autoSaveToCloud() {
+    // 🌟 單筆同步引擎：只傳送被修改的「那一個商品」，時間趨近於 0！
+    function syncSingleItem(action, itemOrShortCode) {
         const indicator = document.getElementById('syncIndicator');
         indicator.classList.add('syncing');
         
-        clearTimeout(syncTimeout);
-        // 等待 1.5 秒確認使用者沒有連續點擊，才把整包資料發給 Google
-        syncTimeout = setTimeout(async () => {
-            if(isSyncing) return;
-            isSyncing = true;
-            try {
-                await fetch(GAS_URL, { 
-                    method: "POST", 
-                    headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({action: "save_data", data: inventory}) 
-                });
-            } catch(e) { console.error("背景存檔失敗", e); }
-            isSyncing = false;
-            indicator.classList.remove('syncing');
-        }, 1500); 
+        let payload = { action: action };
+        if (action === "delete_item") { payload.shortCode = itemOrShortCode; } 
+        else { payload.item = itemOrShortCode; }
+
+        fetch(GAS_URL, { 
+            method: "POST", 
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload) 
+        }).then(() => indicator.classList.remove('syncing')).catch(() => indicator.classList.remove('syncing'));
     }
 
-    // ==================== 🌟 革命 2：Excel 智慧匯出與匯入 ====================
+    // ==================== Excel 匯出與匯入 ====================
     function exportExcel() {
         if (inventory.length === 0) return alert("沒有資料可匯出！");
         showLoading("正在產生 Excel 會計報表...");
@@ -379,7 +361,6 @@
         }, 100);
     }
 
-    // 🌟 智慧合併引擎：Excel 更新後自動覆蓋數據，但保護舊照片不遺失！
     function importExcel(event) {
         const file = event.target.files[0];
         if(!file) return;
@@ -391,21 +372,16 @@
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, {type: 'array'});
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                
-                // 跳過前 3 行標題，從第 4 行 (Header) 開始讀取
                 const rows = XLSX.utils.sheet_to_json(firstSheet, {range: 3});
                 
-                let updatedCount = 0;
-                let addedCount = 0;
+                let updatedCount = 0, addedCount = 0;
 
                 rows.forEach(row => {
                     if (!row["產品名稱"] || row["產品名稱"] === "總計 (Total):") return;
-
                     const shortCode = row["短碼"];
                     const existingItem = inventory.find(i => i.shortCode === shortCode);
 
                     if (existingItem) {
-                        // 🌟 找到舊項目 -> 更新文字，保留原本的照片！
                         existingItem.name = row["產品名稱"];
                         existingItem.sku = row["SKU"] !== "N/A" ? row["SKU"] : "N/A";
                         existingItem.area = row["區域"] || "未指定";
@@ -417,34 +393,30 @@
                         existingItem.isPrinted = row["封條狀態"] === "已印封條";
                         updatedCount++;
                     } else {
-                        // 🌟 找不到 -> 代表是老闆在 Excel 裡新增的行，建立全新資料
                         inventory.push({
                             shortCode: shortCode || Math.random().toString(36).substring(2,6).toUpperCase(),
-                            name: row["產品名稱"],
-                            sku: row["SKU"] !== "N/A" ? row["SKU"] : "N/A",
-                            area: row["區域"] || "未指定",
-                            category: row["分類"] || "其他",
-                            unit: row["單位"] || "件",
-                            price: parseFloat(row["單價(HKD)"]) || 0,
-                            actualQty: parseInt(row["實盤數量"]) || 0,
-                            expiryDate: row["到期日"] || "",
-                            isPrinted: row["封條狀態"] === "已印封條",
-                            image: "", // 新資料預設無圖片
-                            bookQty: 0
+                            name: row["產品名稱"], sku: row["SKU"] !== "N/A" ? row["SKU"] : "N/A",
+                            area: row["區域"] || "未指定", category: row["分類"] || "其他", unit: row["單位"] || "件",
+                            price: parseFloat(row["單價(HKD)"]) || 0, actualQty: parseInt(row["實盤數量"]) || 0,
+                            expiryDate: row["到期日"] || "", isPrinted: row["封條狀態"] === "已印封條",
+                            image: "", bookQty: 0
                         });
                         addedCount++;
                     }
                 });
 
                 renderData();
-                autoSaveToCloud(); // 觸發背景上傳
+                
+                // 批次匯入時才使用全量覆蓋
+                fetch(GAS_URL, { method: "POST", body: JSON.stringify({action: "save_data", data: inventory}) });
+                
                 hideLoading();
                 alert(`✅ Excel 智能合併成功！\n更新了 ${updatedCount} 筆資料\n新增了 ${addedCount} 筆全新產品`);
             } catch(err) {
                 hideLoading();
                 alert("❌ 解析失敗，請確認上傳的是本系統匯出的 Excel 檔案。");
             }
-            event.target.value = ''; // 清空選擇，允許重複上傳
+            event.target.value = ''; 
         };
         reader.readAsArrayBuffer(file);
     }
@@ -517,7 +489,7 @@
         img.src = URL.createObjectURL(file);
     }
 
-    // 🌟 儲存產品時，不再卡頓等待！
+    // 🌟 極速儲存：零等待時間
     function saveProduct() {
         const name = document.getElementById('add-name').value;
         if (!name) return alert("產品名稱不可空白！");
@@ -526,7 +498,7 @@
         const priceVal = parseFloat(document.getElementById('add-price').value);
         const expiryDateVal = document.getElementById('add-expiry').value;
         
-        inventory.unshift({ 
+        const newItem = { 
             shortCode: Math.random().toString(36).substring(2,6).toUpperCase(),
             area: document.getElementById('add-area').value || "未指定",
             category: document.getElementById('add-cat').value,
@@ -539,23 +511,27 @@
             image: compressedBase64,
             isPrinted: false,
             expiryDate: expiryDateVal
-        });
+        };
 
-        // 呼叫非同步儲存引擎，UI 瞬間清空並跳轉
-        autoSaveToCloud();
+        inventory.unshift(newItem);
         
         ['add-name','add-sku','add-price','add-qty','add-expiry','tempImageData'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('previewImage').style.display = 'none';
         
         if(window.innerWidth >= 1024) switchView('view-table'); 
         else renderData();
+
+        // 呼叫單筆同步
+        syncSingleItem("add_item", newItem);
     }
 
     function deleteProduct(index) {
         if(confirm(`⚠️ 確定要永久刪除「${inventory[index].name}」嗎？`)) {
+            const code = inventory[index].shortCode;
             inventory.splice(index, 1);
             renderData();
-            autoSaveToCloud();
+            // 呼叫單筆刪除
+            syncSingleItem("delete_item", code);
         }
     }
 
@@ -592,7 +568,7 @@
         document.getElementById('editModal').style.display = 'flex';
     }
 
-    // 🌟 修改資料時，不再卡頓等待！
+    // 🌟 極速修改：瞬間關閉視窗，無須等待！
     function saveEditProduct() {
         const index = document.getElementById('edit-index').value;
         const newName = document.getElementById('edit-name').value;
@@ -610,9 +586,12 @@
             inventory[index].isPrinted = false;
         }
 
+        // 瞬間關閉視窗、更新畫面
         document.getElementById('editModal').style.display = 'none';
-        renderData();      // UI 瞬間更新
-        autoSaveToCloud(); // 背景延遲上傳
+        renderData();      
+        
+        // 呼叫單筆同步
+        syncSingleItem("update_item", inventory[index]);
     }
 
     function renderData() {
@@ -699,14 +678,28 @@
         document.getElementById('grandTotal').innerText = `$${total.toLocaleString()}`;
     }
 
-    // 🌟 調整數量時，UI 瞬間切換，背景默默上傳！
+    // 🌟 數量增減：UI 瞬間更新，並利用定時器避免頻繁呼叫伺服器
+    let qtySyncTimers = {};
     function adjustQty(index, amt) {
         if(navigator.vibrate) navigator.vibrate(50);
         if(inventory[index].actualQty + amt >= 0) {
             inventory[index].actualQty += amt;
             inventory[index].isPrinted = false; 
-            renderData();
-            autoSaveToCloud();
+            renderData(); // 瞬間更新畫面
+            
+            // 防抖同步：1秒內連續點擊只會上傳最後一次的結果
+            const item = inventory[index];
+            clearTimeout(qtySyncTimers[item.shortCode]);
+            
+            const indicator = document.getElementById('syncIndicator');
+            indicator.classList.add('syncing');
+
+            qtySyncTimers[item.shortCode] = setTimeout(() => {
+                fetch(GAS_URL, {
+                    method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({action: "update_item", item: item})
+                }).then(() => indicator.classList.remove('syncing'));
+            }, 1000);
         }
     }
 
@@ -731,7 +724,8 @@
 
     function printSingle(index) {
         inventory[index].isPrinted = true;
-        renderData(); autoSaveToCloud();
+        renderData(); 
+        syncSingleItem("update_item", inventory[index]); // 只更新這一筆
         triggerPrintHTML([inventory[index]]);
     }
 
@@ -739,7 +733,9 @@
         const unprinted = inventory.filter(i => !i.isPrinted);
         if(unprinted.length === 0) return alert("🎉 沒有需要列印的封條！");
         inventory.forEach(i => i.isPrinted = true);
-        renderData(); autoSaveToCloud();
+        renderData(); 
+        // 批次列印改動較多，直接全量上傳
+        fetch(GAS_URL, { method: "POST", body: JSON.stringify({action: "save_data", data: inventory}) });
         triggerPrintHTML(unprinted);
     }
 
