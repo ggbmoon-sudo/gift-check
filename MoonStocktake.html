@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v9.3</title>
+    <title>Moon Stocktake v9.4</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.18.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -63,6 +63,9 @@
         .btn-import { background: linear-gradient(135deg, #5E5CE6, #AF52DE); }
         .btn-ai { background: linear-gradient(135deg, #AF52DE, #5E5CE6); } 
         .btn-normal { background: var(--ios-orange); }
+        /* 🌟 新增：篩選按鈕專屬樣式 */
+        .btn-warning { background: linear-gradient(135deg, #FF3B30, #FF6961); }
+        .btn-cancel-filter { background: var(--ios-light-gray); color: var(--ios-text); }
 
         .stepper { display: flex; align-items: center; background: var(--ios-light-gray); border-radius: 8px; width:fit-content;}
         .stepper-btn { background: none; border: none; font-size: 20px; color: var(--ios-blue); width: 36px; height: 32px; cursor: pointer; }
@@ -120,8 +123,10 @@
     <div class="desktop-nav">
         <button class="desktop-nav-btn" id="d-nav-table" onclick="switchView('view-table')">📋 庫存總表</button>
         <button class="desktop-nav-btn" id="d-nav-add" onclick="switchView('view-add')">➕ 新增產品</button>
-        <button class="action-btn" style="width:auto; margin:0; background:#333;" onclick="batchPrint()">🖨️ 印未印封條</button>
         
+        <button class="action-btn btn-warning" style="width:auto; margin:0;" id="d-btn-filter" onclick="togglePriceFilter()">⚠️ 篩選缺價</button>
+
+        <button class="action-btn" style="width:auto; margin:0; background:#333;" onclick="batchPrint()">🖨️ 印未印封條</button>
         <button class="action-btn btn-excel" style="width:auto; margin:0;" onclick="exportExcel()">⬇️ 下載報表 (Excel)</button>
         <button class="action-btn btn-import" style="width:auto; margin:0;" onclick="document.getElementById('excelUpload').click()">⬆️ 匯入更新 (Excel)</button>
         <input type="file" id="excelUpload" accept=".xlsx, .xls" style="display:none;" onchange="importExcel(event)">
@@ -188,8 +193,12 @@
     </div>
 
     <div id="view-table" class="view-section">
-        <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;" id="mobile-action-bar">
-            <input type="text" id="search" class="ios-input" placeholder="🔍 搜尋名稱、SKU..." onkeyup="renderData()" style="width:100%;">
+        
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;" id="mobile-action-bar">
+            <div style="display:flex; gap:10px; width:100%;">
+                <input type="text" id="search" class="ios-input" placeholder="🔍 搜尋名稱、SKU..." onkeyup="renderData()" style="flex:1;">
+                <button class="action-btn btn-warning" style="margin:0; width:auto; padding:0 15px; font-size:14px; white-space:nowrap;" id="m-btn-filter" onclick="togglePriceFilter()">⚠️ 缺價</button>
+            </div>
             <div style="display:flex; gap:10px; width:100%;">
                 <button class="action-btn btn-excel" style="margin:0; padding:0 15px; font-size:14px; flex:1;" onclick="exportExcel()">⬇️ 匯出 Excel</button>
                 <button class="action-btn btn-import" style="margin:0; padding:0 15px; font-size:14px; flex:1;" onclick="document.getElementById('excelUpload').click()">⬆️ 匯入更新</button>
@@ -266,13 +275,15 @@
 </div>
 
 <script>
-    // ⚠️ 記得替換成你最新發布的 GAS 網址！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbw9zjR7-DOHCzBhHbDM9QhG22nWpozbU2ENjUayX8Y-AdLVXhddIKm-ea8sI3ToLLXs/exec";
     
     let inventory = [];
     let skuScanner = null;
     let currentPhotoMode = 'normal';
     let isSyncing = false;
+
+    // 🌟 全域篩選變數
+    let showMissingPriceOnly = false;
 
     window.onload = async function() {
         if (window.innerWidth >= 1024) { 
@@ -329,6 +340,22 @@
         }).then(() => indicator.classList.remove('syncing')).catch(() => indicator.classList.remove('syncing'));
     }
 
+    // 🌟 一鍵切換缺價過濾器
+    function togglePriceFilter() {
+        showMissingPriceOnly = !showMissingPriceOnly;
+        const dBtn = document.getElementById('d-btn-filter');
+        const mBtn = document.getElementById('m-btn-filter');
+
+        if (showMissingPriceOnly) {
+            if(dBtn) { dBtn.innerHTML = "❌ 取消篩選"; dBtn.classList.remove('btn-warning'); dBtn.classList.add('btn-cancel-filter'); }
+            if(mBtn) { mBtn.innerHTML = "❌ 取消"; mBtn.classList.remove('btn-warning'); mBtn.classList.add('btn-cancel-filter'); }
+        } else {
+            if(dBtn) { dBtn.innerHTML = "⚠️ 篩選缺價"; dBtn.classList.remove('btn-cancel-filter'); dBtn.classList.add('btn-warning'); }
+            if(mBtn) { mBtn.innerHTML = "⚠️ 缺價"; mBtn.classList.remove('btn-cancel-filter'); mBtn.classList.add('btn-warning'); }
+        }
+        renderData();
+    }
+
     function exportExcel() {
         if (inventory.length === 0) return alert("沒有資料可匯出！");
         showLoading("正在產生 Excel 會計報表...");
@@ -348,7 +375,6 @@
                 const lineTotal = price * qty;
                 totalQty += qty; totalValue += lineTotal;
                 
-                // 🌟 Excel 匯出日期修復
                 let cleanExpiry = item.expiryDate || "";
                 if (cleanExpiry.includes("T")) cleanExpiry = cleanExpiry.split("T")[0];
 
@@ -390,7 +416,6 @@
                     if (!row["產品名稱"] || row["產品名稱"] === "總計 (Total):") return;
                     const shortCode = row["短碼"];
                     
-                    // 🌟 處理 Excel 匯入的日期亂碼
                     let parsedExpiry = row["到期日"] || "";
                     if (typeof parsedExpiry === 'string' && parsedExpiry.includes('T')) {
                         parsedExpiry = parsedExpiry.split('T')[0];
@@ -560,7 +585,6 @@
         document.getElementById('edit-sku').value = item.sku || '';
         document.getElementById('edit-area').value = item.area || '';
         
-        // 🌟 修復日期格式：如果編輯器打開時有 T，確保濾掉
         let cleanDate = item.expiryDate || '';
         if(cleanDate.includes('T')) cleanDate = cleanDate.split('T')[0];
         document.getElementById('edit-expiry').value = cleanDate;
@@ -619,12 +643,16 @@
 
             const searchStr = `${item.name} ${item.sku} ${item.shortCode} ${item.area} ${item.category}`.toLowerCase();
 
+            // 🌟 1. 先確認是否符合搜尋關鍵字
             if (searchStr.includes(query)) {
                 
-                const unitStr = item.unit || '件'; // 🌟 取得輸入的單位
-                
                 const isMissingPrice = !item.price || item.price === 0;
-                // 🌟 在單價旁邊加入單位顯示 (例如：/ 箱)
+                
+                // 🌟 2. 判斷是否開啟「只顯示缺價」過濾器
+                if (showMissingPriceOnly && !isMissingPrice) return; // 如果有價錢，就跳過不渲染！
+
+                const unitStr = item.unit || '件'; 
+                
                 const priceText = isMissingPrice 
                     ? `<div class="price-container"><span style="color:var(--ios-red);font-weight:bold;">$0</span> <span style="font-size:12px; color:var(--ios-gray);">/ ${unitStr}</span> <span class="alert-badge">⚠️ 需補單價</span></div>` 
                     : `<div class="price-container"><span style="font-weight:600;">$${item.price}</span> <span style="font-size:12px; color:var(--ios-gray);">/ ${unitStr}</span></div>`;
@@ -636,7 +664,6 @@
                     : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
                 const printBtn = item.isPrinted ? '✅' : '🖨️';
                 
-                // 🌟 確保畫面上的日期不會有亂碼
                 let cleanExpiry = item.expiryDate || '';
                 if(cleanExpiry.includes('T')) cleanExpiry = cleanExpiry.split('T')[0];
 
