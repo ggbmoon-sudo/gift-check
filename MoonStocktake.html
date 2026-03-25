@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v9.5</title>
+    <title>Moon Stocktake v9.6</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.18.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -33,10 +33,14 @@
         .view-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* 🌟 動態區域導覽列樣式 */
+        /* 🌟 動態區域導覽列樣式 (加入滑鼠拖曳游標) */
         .area-filter-container {
             display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 8px;
             -webkit-overflow-scrolling: touch; scrollbar-width: none;
+            cursor: grab; /* 電腦版顯示可抓取游標 */
+        }
+        .area-filter-container:active {
+            cursor: grabbing; /* 拖曳時游標改變 */
         }
         .area-filter-container::-webkit-scrollbar { display: none; }
         .filter-chip {
@@ -135,7 +139,9 @@
     <div class="desktop-nav">
         <button class="desktop-nav-btn" id="d-nav-table" onclick="switchView('view-table')">📋 庫存總表</button>
         <button class="desktop-nav-btn" id="d-nav-add" onclick="switchView('view-add')">➕ 新增產品</button>
+        
         <button class="action-btn btn-warning" style="width:auto; margin:0;" id="d-btn-filter" onclick="togglePriceFilter()">⚠️ 篩選缺價</button>
+
         <button class="action-btn" style="width:auto; margin:0; background:#333;" onclick="batchPrint()">🖨️ 印未印封條</button>
         <button class="action-btn btn-excel" style="width:auto; margin:0;" onclick="exportExcel()">⬇️ 下載報表 (Excel)</button>
         <button class="action-btn btn-import" style="width:auto; margin:0;" onclick="document.getElementById('excelUpload').click()">⬆️ 匯入更新 (Excel)</button>
@@ -296,7 +302,7 @@
     let isSyncing = false;
 
     let showMissingPriceOnly = false;
-    let currentAreaFilter = "All"; // 🌟 當前選擇的區域篩選狀態
+    let currentAreaFilter = "All"; 
 
     window.onload = async function() {
         if (window.innerWidth >= 1024) { 
@@ -304,7 +310,31 @@
             document.getElementById('mobile-action-bar').style.display = 'none';
         } else { switchView('view-add'); }
         await forceSync();
+        setupDragToScroll(); // 🌟 啟動滑鼠拖曳滾動引擎
     };
+
+    // 🌟 滑鼠拖曳滾動引擎 (針對 areaFilters)
+    function setupDragToScroll() {
+        const slider = document.getElementById('areaFilters');
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        slider.addEventListener('mousedown', (e) => {
+            isDown = true;
+            startX = e.pageX - slider.offsetLeft;
+            scrollLeft = slider.scrollLeft;
+        });
+        slider.addEventListener('mouseleave', () => { isDown = false; });
+        slider.addEventListener('mouseup', () => { isDown = false; });
+        slider.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - slider.offsetLeft;
+            const walk = (x - startX) * 2; // 滾動速度加倍
+            slider.scrollLeft = scrollLeft - walk;
+        });
+    }
 
     setInterval(() => {
         const isEditModalOpen = document.getElementById('editModal').style.display === 'flex';
@@ -367,7 +397,6 @@
         renderData();
     }
 
-    // 🌟 點擊區域按鈕觸發篩選
     function setAreaFilter(area) {
         currentAreaFilter = area;
         renderData();
@@ -655,21 +684,17 @@
         let dHTML = '';
         let mHTML = '';
 
-        // 🌟 1. 抓取所有唯一的區域，動態生成「快捷過濾按鈕」
         const uniqueAreas = [...new Set(inventory.map(item => item.area || '未指定'))].sort();
         let filterHtml = `<button class="filter-chip ${currentAreaFilter === 'All' ? 'active' : ''}" onclick="setAreaFilter('All')">全部區域</button>`;
         uniqueAreas.forEach(area => {
-            // 處理單引號防呆
             const safeArea = area.replace(/'/g, "\\'");
             filterHtml += `<button class="filter-chip ${currentAreaFilter === area ? 'active' : ''}" onclick="setAreaFilter('${safeArea}')">${area}</button>`;
         });
         filterContainer.innerHTML = filterHtml;
 
-        // 🌟 2. 渲染產品清單
         inventory.forEach((item, index) => {
             const itemArea = item.area || '未指定';
             
-            // 如果當前有選擇區域，且該產品不屬於該區域，則跳過不顯示
             if (currentAreaFilter !== "All" && itemArea !== currentAreaFilter) return;
 
             const itemTotal = (item.price || 0) * (item.actualQty || 0);
