@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v9.4</title>
+    <title>Moon Stocktake v9.5</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.18.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -32,6 +32,19 @@
         .view-section { display: none; animation: fadeIn 0.2s ease; }
         .view-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 🌟 動態區域導覽列樣式 */
+        .area-filter-container {
+            display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 8px;
+            -webkit-overflow-scrolling: touch; scrollbar-width: none;
+        }
+        .area-filter-container::-webkit-scrollbar { display: none; }
+        .filter-chip {
+            padding: 8px 16px; border-radius: 20px; background: var(--ios-light-gray); color: var(--ios-text);
+            font-size: 14px; font-weight: 600; white-space: nowrap; border: none; cursor: pointer; transition: all 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .filter-chip.active { background: var(--ios-blue); color: white; box-shadow: 0 2px 6px rgba(0,122,255,0.3); }
 
         .premium-table-wrapper { width: 100%; overflow-x: auto; background: var(--ios-card); border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
         .premium-table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -63,7 +76,6 @@
         .btn-import { background: linear-gradient(135deg, #5E5CE6, #AF52DE); }
         .btn-ai { background: linear-gradient(135deg, #AF52DE, #5E5CE6); } 
         .btn-normal { background: var(--ios-orange); }
-        /* 🌟 新增：篩選按鈕專屬樣式 */
         .btn-warning { background: linear-gradient(135deg, #FF3B30, #FF6961); }
         .btn-cancel-filter { background: var(--ios-light-gray); color: var(--ios-text); }
 
@@ -123,9 +135,7 @@
     <div class="desktop-nav">
         <button class="desktop-nav-btn" id="d-nav-table" onclick="switchView('view-table')">📋 庫存總表</button>
         <button class="desktop-nav-btn" id="d-nav-add" onclick="switchView('view-add')">➕ 新增產品</button>
-        
         <button class="action-btn btn-warning" style="width:auto; margin:0;" id="d-btn-filter" onclick="togglePriceFilter()">⚠️ 篩選缺價</button>
-
         <button class="action-btn" style="width:auto; margin:0; background:#333;" onclick="batchPrint()">🖨️ 印未印封條</button>
         <button class="action-btn btn-excel" style="width:auto; margin:0;" onclick="exportExcel()">⬇️ 下載報表 (Excel)</button>
         <button class="action-btn btn-import" style="width:auto; margin:0;" onclick="document.getElementById('excelUpload').click()">⬆️ 匯入更新 (Excel)</button>
@@ -180,7 +190,7 @@
         </div>
         
         <div class="form-row">
-            <div class="form-group" style="flex: 1;"><label class="form-label">單價 ($)</label><input type="number" id="add-price" class="ios-input" placeholder="留空將特別標示" inputmode="decimal"></div>
+            <div class="form-group" style="flex: 1;"><label class="form-label">單價 ($)</label><input type="number" id="add-price" class="ios-input" placeholder="留空標示缺價" inputmode="decimal"></div>
             <div class="form-group" style="flex: 1;"><label class="form-label">實盤數量</label><input type="number" id="add-qty" class="ios-input" value="0" inputmode="numeric"></div>
         </div>
 
@@ -194,6 +204,9 @@
 
     <div id="view-table" class="view-section">
         
+        <div id="areaFilters" class="area-filter-container">
+            </div>
+
         <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;" id="mobile-action-bar">
             <div style="display:flex; gap:10px; width:100%;">
                 <input type="text" id="search" class="ios-input" placeholder="🔍 搜尋名稱、SKU..." onkeyup="renderData()" style="flex:1;">
@@ -282,8 +295,8 @@
     let currentPhotoMode = 'normal';
     let isSyncing = false;
 
-    // 🌟 全域篩選變數
     let showMissingPriceOnly = false;
+    let currentAreaFilter = "All"; // 🌟 當前選擇的區域篩選狀態
 
     window.onload = async function() {
         if (window.innerWidth >= 1024) { 
@@ -334,13 +347,11 @@
         else { payload.item = itemOrShortCode; }
 
         fetch(GAS_URL, { 
-            method: "POST", 
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
             body: JSON.stringify(payload) 
         }).then(() => indicator.classList.remove('syncing')).catch(() => indicator.classList.remove('syncing'));
     }
 
-    // 🌟 一鍵切換缺價過濾器
     function togglePriceFilter() {
         showMissingPriceOnly = !showMissingPriceOnly;
         const dBtn = document.getElementById('d-btn-filter');
@@ -353,6 +364,12 @@
             if(dBtn) { dBtn.innerHTML = "⚠️ 篩選缺價"; dBtn.classList.remove('btn-cancel-filter'); dBtn.classList.add('btn-warning'); }
             if(mBtn) { mBtn.innerHTML = "⚠️ 缺價"; mBtn.classList.remove('btn-cancel-filter'); mBtn.classList.add('btn-warning'); }
         }
+        renderData();
+    }
+
+    // 🌟 點擊區域按鈕觸發篩選
+    function setAreaFilter(area) {
+        currentAreaFilter = area;
         renderData();
     }
 
@@ -632,33 +649,45 @@
         const query = document.getElementById('search').value.toLowerCase();
         const dBody = document.getElementById('desktopTableBody');
         const mBody = document.getElementById('mobileListBody');
+        const filterContainer = document.getElementById('areaFilters');
         
         let total = 0;
         let dHTML = '';
         let mHTML = '';
 
+        // 🌟 1. 抓取所有唯一的區域，動態生成「快捷過濾按鈕」
+        const uniqueAreas = [...new Set(inventory.map(item => item.area || '未指定'))].sort();
+        let filterHtml = `<button class="filter-chip ${currentAreaFilter === 'All' ? 'active' : ''}" onclick="setAreaFilter('All')">全部區域</button>`;
+        uniqueAreas.forEach(area => {
+            // 處理單引號防呆
+            const safeArea = area.replace(/'/g, "\\'");
+            filterHtml += `<button class="filter-chip ${currentAreaFilter === area ? 'active' : ''}" onclick="setAreaFilter('${safeArea}')">${area}</button>`;
+        });
+        filterContainer.innerHTML = filterHtml;
+
+        // 🌟 2. 渲染產品清單
         inventory.forEach((item, index) => {
+            const itemArea = item.area || '未指定';
+            
+            // 如果當前有選擇區域，且該產品不屬於該區域，則跳過不顯示
+            if (currentAreaFilter !== "All" && itemArea !== currentAreaFilter) return;
+
             const itemTotal = (item.price || 0) * (item.actualQty || 0);
             total += itemTotal;
 
             const searchStr = `${item.name} ${item.sku} ${item.shortCode} ${item.area} ${item.category}`.toLowerCase();
 
-            // 🌟 1. 先確認是否符合搜尋關鍵字
             if (searchStr.includes(query)) {
-                
                 const isMissingPrice = !item.price || item.price === 0;
                 
-                // 🌟 2. 判斷是否開啟「只顯示缺價」過濾器
-                if (showMissingPriceOnly && !isMissingPrice) return; // 如果有價錢，就跳過不渲染！
+                if (showMissingPriceOnly && !isMissingPrice) return; 
 
                 const unitStr = item.unit || '件'; 
-                
                 const priceText = isMissingPrice 
                     ? `<div class="price-container"><span style="color:var(--ios-red);font-weight:bold;">$0</span> <span style="font-size:12px; color:var(--ios-gray);">/ ${unitStr}</span> <span class="alert-badge">⚠️ 需補單價</span></div>` 
                     : `<div class="price-container"><span style="font-weight:600;">$${item.price}</span> <span style="font-size:12px; color:var(--ios-gray);">/ ${unitStr}</span></div>`;
                 
                 const rowClass = isMissingPrice ? "missing-price-row" : "";
-                
                 const imgHtml = item.image 
                     ? `<img src="${item.image}" onclick="viewImage(${index})" style="width:40px; height:40px; object-fit:cover; border-radius:6px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2);" title="點擊看大圖">` 
                     : `<span style="color:var(--ios-light-gray); font-size:20px;">🚫</span>`;
