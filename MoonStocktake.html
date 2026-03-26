@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Moon Stocktake v9.6</title>
+    <title>Moon Stocktake v9.7</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.18.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -33,15 +33,12 @@
         .view-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* 🌟 動態區域導覽列樣式 (加入滑鼠拖曳游標) */
         .area-filter-container {
             display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 8px;
             -webkit-overflow-scrolling: touch; scrollbar-width: none;
-            cursor: grab; /* 電腦版顯示可抓取游標 */
+            cursor: grab;
         }
-        .area-filter-container:active {
-            cursor: grabbing; /* 拖曳時游標改變 */
-        }
+        .area-filter-container:active { cursor: grabbing; }
         .area-filter-container::-webkit-scrollbar { display: none; }
         .filter-chip {
             padding: 8px 16px; border-radius: 20px; background: var(--ios-light-gray); color: var(--ios-text);
@@ -210,8 +207,7 @@
 
     <div id="view-table" class="view-section">
         
-        <div id="areaFilters" class="area-filter-container">
-            </div>
+        <div id="areaFilters" class="area-filter-container"></div>
 
         <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;" id="mobile-action-bar">
             <div style="display:flex; gap:10px; width:100%;">
@@ -310,10 +306,9 @@
             document.getElementById('mobile-action-bar').style.display = 'none';
         } else { switchView('view-add'); }
         await forceSync();
-        setupDragToScroll(); // 🌟 啟動滑鼠拖曳滾動引擎
+        setupDragToScroll(); 
     };
 
-    // 🌟 滑鼠拖曳滾動引擎 (針對 areaFilters)
     function setupDragToScroll() {
         const slider = document.getElementById('areaFilters');
         let isDown = false;
@@ -331,7 +326,7 @@
             if (!isDown) return;
             e.preventDefault();
             const x = e.pageX - slider.offsetLeft;
-            const walk = (x - startX) * 2; // 滾動速度加倍
+            const walk = (x - startX) * 2; 
             slider.scrollLeft = scrollLeft - walk;
         });
     }
@@ -402,20 +397,32 @@
         renderData();
     }
 
+    // ==================== 🌟 專業會計 Excel 匯出 ====================
     function exportExcel() {
         if (inventory.length === 0) return alert("沒有資料可匯出！");
         showLoading("正在產生 Excel 會計報表...");
+        
         setTimeout(() => {
             const now = new Date();
             const dateStr = now.toLocaleDateString('zh-HK') + " " + now.toLocaleTimeString('zh-HK');
             let totalQty = 0, totalValue = 0;
             
+            // 🌟 1. 變更專屬標題，並移除 SKU 與 封條狀態
             const wsData = [
-                ["🌕 Moon Stocktake - 庫存盤點結算報告"], ["報表產生時間:", dateStr], [""], 
-                ["短碼", "SKU", "區域", "分類", "產品名稱", "單位", "單價(HKD)", "實盤數量", "總值(HKD)", "到期日", "封條狀態"] 
+                ["broaden leisure outlets company limited(Give Gift Boutique) ,31 MAR 2026 Stocktake"], 
+                ["報表產生時間:", dateStr], 
+                [""], 
+                ["短碼", "區域", "分類", "產品名稱", "單位", "單價(HKD)", "實盤數量", "總值(HKD)", "到期日"] 
             ];
 
-            inventory.forEach(item => {
+            // 🌟 2. 依照區域 A-Z 進行排序
+            const sortedInventory = [...inventory].sort((a, b) => {
+                const areaA = (a.area || "未指定").toString().toLowerCase();
+                const areaB = (b.area || "未指定").toString().toLowerCase();
+                return areaA.localeCompare(areaB, 'en');
+            });
+
+            sortedInventory.forEach(item => {
                 const price = parseFloat(item.price) || 0;
                 const qty = parseInt(item.actualQty) || 0;
                 const lineTotal = price * qty;
@@ -424,16 +431,25 @@
                 let cleanExpiry = item.expiryDate || "";
                 if (cleanExpiry.includes("T")) cleanExpiry = cleanExpiry.split("T")[0];
 
+                // 移除 SKU 與 封條狀態 的寫入
                 wsData.push([
-                    item.shortCode || "", item.sku || "N/A", item.area || "未指定", item.category || "其他",
-                    item.name || "", item.unit || "件", price, qty, lineTotal, cleanExpiry, 
-                    item.isPrinted ? "已印封條" : "未列印"
+                    item.shortCode || "", 
+                    item.area || "未指定", 
+                    item.category || "其他",
+                    item.name || "", 
+                    item.unit || "件", 
+                    price, 
+                    qty, 
+                    lineTotal, 
+                    cleanExpiry
                 ]);
             });
 
-            wsData.push(["", "", "", "", "", "", "總計 (Total):", totalQty, totalValue, "", ""]);
+            wsData.push(["", "", "", "", "", "總計 (Total):", totalQty, totalValue, ""]);
             const ws = XLSX.utils.aoa_to_sheet(wsData);
-            ws['!cols'] = [{wch:8}, {wch:15}, {wch:12}, {wch:20}, {wch:40}, {wch:8}, {wch:12}, {wch:10}, {wch:15}, {wch:12}, {wch:12}];
+            
+            // 調整欄寬以符合新格式
+            ws['!cols'] = [{wch:8}, {wch:12}, {wch:20}, {wch:40}, {wch:8}, {wch:12}, {wch:10}, {wch:15}, {wch:12}];
 
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "庫存結算總表");
@@ -443,6 +459,7 @@
         }, 100);
     }
 
+    // ==================== 🌟 智慧安全 Excel 匯入 ====================
     function importExcel(event) {
         const file = event.target.files[0];
         if(!file) return;
@@ -454,7 +471,7 @@
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, {type: 'array'});
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const rows = XLSX.utils.sheet_to_json(firstSheet, {range: 3});
+                const rows = XLSX.utils.sheet_to_json(firstSheet, {range: 3}); // 從表頭行開始讀取
                 
                 let updatedCount = 0, addedCount = 0;
 
@@ -470,23 +487,30 @@
                     const existingItem = inventory.find(i => i.shortCode === shortCode);
 
                     if (existingItem) {
-                        existingItem.name = row["產品名稱"];
-                        existingItem.sku = row["SKU"] !== "N/A" ? row["SKU"] : "N/A";
-                        existingItem.area = row["區域"] || "未指定";
-                        existingItem.category = row["分類"] || "其他";
-                        existingItem.unit = row["單位"] || "件";
-                        existingItem.price = parseFloat(row["單價(HKD)"]) || 0;
-                        existingItem.actualQty = parseInt(row["實盤數量"]) || 0;
-                        existingItem.expiryDate = parsedExpiry;
-                        existingItem.isPrinted = row["封條狀態"] === "已印封條";
+                        // 🌟 防呆更新：只更新 Excel 裡面有的欄位，保護被隱藏的 SKU 不被洗掉！
+                        if (row["產品名稱"] !== undefined) existingItem.name = row["產品名稱"];
+                        if (row["區域"] !== undefined) existingItem.area = row["區域"] || "未指定";
+                        if (row["分類"] !== undefined) existingItem.category = row["分類"] || "其他";
+                        if (row["單位"] !== undefined) existingItem.unit = row["單位"] || "件";
+                        if (row["單價(HKD)"] !== undefined) existingItem.price = parseFloat(row["單價(HKD)"]) || 0;
+                        if (row["實盤數量"] !== undefined) existingItem.actualQty = parseInt(row["實盤數量"]) || 0;
+                        if (row["到期日"] !== undefined) existingItem.expiryDate = parsedExpiry;
+                        // 注意：因為匯出版移除了 SKU 和 封條狀態，這裡完全不去動 existingItem.sku 和 existingItem.isPrinted
+                        
                         updatedCount++;
                     } else {
+                        // 如果是全新的商品
                         inventory.push({
                             shortCode: shortCode || Math.random().toString(36).substring(2,6).toUpperCase(),
-                            name: row["產品名稱"], sku: row["SKU"] !== "N/A" ? row["SKU"] : "N/A",
-                            area: row["區域"] || "未指定", category: row["分類"] || "其他", unit: row["單位"] || "件",
-                            price: parseFloat(row["單價(HKD)"]) || 0, actualQty: parseInt(row["實盤數量"]) || 0,
-                            expiryDate: parsedExpiry, isPrinted: row["封條狀態"] === "已印封條",
+                            name: row["產品名稱"], 
+                            sku: "N/A", // 新增的商品因為 Excel 沒 SKU 欄位，預設為 N/A
+                            area: row["區域"] || "未指定", 
+                            category: row["分類"] || "其他", 
+                            unit: row["單位"] || "件",
+                            price: parseFloat(row["單價(HKD)"]) || 0, 
+                            actualQty: parseInt(row["實盤數量"]) || 0,
+                            expiryDate: parsedExpiry, 
+                            isPrinted: false,
                             image: "", bookQty: 0
                         });
                         addedCount++;
